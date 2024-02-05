@@ -23,7 +23,8 @@ class DeepGate2(dg.Model):
         # initialize the function hidden state
         # prob_mask = copy.deepcopy(G.prob)
         if PI_prob is None:
-            prob_mask = copy.deepcopy(G.prob)
+            prob_mask = [0.5] * len(G.gate)
+            prob_mask = torch.tensor(prob_mask).unsqueeze(1)
         else:
             prob_mask = copy.deepcopy(PI_prob)
         prob_mask = prob_mask.to(device)
@@ -37,8 +38,8 @@ class DeepGate2(dg.Model):
         edge_index = G.edge_index
 
         node_state = torch.cat([hs, hf], dim=-1)
-        and_mask = G.gate.squeeze(1) == 1
-        not_mask = G.gate.squeeze(1) == 2
+        and_mask = G.gate == 1
+        not_mask = G.gate == 2
 
         for _ in range(self.num_rounds):
             for level in range(1, num_layers_f):
