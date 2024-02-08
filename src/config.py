@@ -18,11 +18,14 @@ def get_parse_args():
     parser.add_argument('--dropout', default=0.1, type=float)
     
     # Transformer 
+    parser.add_argument('--tf_arch', default='plain', type=str)
     parser.add_argument('--TF_depth', default=6, type=int)
     parser.add_argument('--token_emb', default=256, type=int)
     parser.add_argument('--tf_emb_size', default=256, type=int)
     parser.add_argument('--head_num', default=8, type=int)
     parser.add_argument('--MLP_expansion', default=4, type=int)
+    parser.add_argument('--k_hop', default=4, type=float)
+    parser.add_argument('--hop_record', action='store_true')
     
     # Train
     parser.add_argument('--en_distrubuted', action='store_true')

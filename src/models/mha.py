@@ -1,6 +1,4 @@
 '''
-    SA2T Transformer Model 
-    Author: Stone
     Date: 24/05/2022
     Ref. https://github.com/FrancescoSaverioZuppichini/ViT
 '''
@@ -85,14 +83,3 @@ class TransformerEncoderBlock(nn.Sequential):
                 nn.Dropout(args.dropout)
             )
             ))
-
-class Transformer(nn.Sequential):
-    def __init__(self, args, TF_depth):
-        super().__init__()
-        self.args = args
-        self.tf_encoder_layers = [TransformerEncoderBlock(args).to(self.args.device) for _ in range(TF_depth)]
-
-    def forward(self, x):
-        for layer in self.tf_encoder_layers:
-            x = layer(x)
-        return x

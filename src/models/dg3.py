@@ -4,7 +4,14 @@ import torch.nn as nn
 from .pool import PoolNet
 from .mlp import MLP
 from .dg2 import DeepGate2
-from .transformer import Transformer
+
+from .plain_tf import Plain_Transformer
+from .hop_tf import Hop_Transformer
+
+_transformer_factory = {
+    'plain': Plain_Transformer,
+    'hop': Hop_Transformer, 
+}
 
 class DeepGate3(nn.Module):
     def __init__(self, args):
@@ -15,13 +22,13 @@ class DeepGate3(nn.Module):
         self.tokenizer = DeepGate2()
         self.tokenizer.load_pretrained(args.pretrained_model_path)
         
-        # Hop Transformer 
-        self.transformer = Transformer(args, args.TF_depth)
+        # Transformer 
+        self.transformer = _transformer_factory[args.tf_arch](args, args.TF_depth)
         
     def forward(self, g):
         hs, hf = self.tokenizer(g)
         pe = hs 
         node_state = torch.cat([hf, pe], dim=-1)
-        node_state = self.transformer(node_state)
+        node_state = self.transformer(g, node_state)
         
         return node_state
