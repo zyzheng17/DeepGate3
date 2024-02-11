@@ -43,6 +43,7 @@ class BERT(nn.Module):
         # multi-layers transformer blocks, deep network
         self.transformer_enc = nn.ModuleList(
             [TransformerBlock(hidden, attn_heads, hidden * 4, dropout) for _ in range(n_layers)])
+        
         self.transformer_dec = nn.ModuleList(
             [TransformerBlock(hidden, attn_heads, hidden * 4, dropout) for _ in range(n_layers)])
         

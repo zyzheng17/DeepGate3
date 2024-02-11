@@ -20,6 +20,7 @@ TT_DIFF_RANGE = [0.2, 0.8]
 
 class Trainer():
     def __init__(self,
+                 tokenizer,
                  model, 
                  training_id = 'default',
                  save_dir = './exp', 
@@ -77,6 +78,7 @@ class Trainer():
             self.loss_func = nn.L1Loss().to(self.device)
         else:
             raise NotImplementedError
+        self.sigmoid = nn.Sigmoid()
         self.bce = nn.BCELoss().to(self.device)
         self.ce = nn.CrossEntropyLoss(reduction='mean').to(self.device)
         self.cos_sim = nn.CosineSimilarity(dim=2, eps=1e-6).to(self.device)
@@ -85,8 +87,10 @@ class Trainer():
         self.optimizer = torch.optim.Adam(model.parameters(), lr=self.lr)
         
         # Model
+        self.tokenizer = tokenizer.to(self.device)
         self.model = model.to(self.device)
         self.model_epoch = 0
+        
         
         # Temp Data 
         self.stru_sim_tmp = {}
@@ -146,7 +150,28 @@ class Trainer():
             return False
 
     def run_batch(self, batch):
-        pass
+        
+        #initial token emb by dg2
+        hs, hf = self.tokenizer(batch)
+
+        #mask graph modeling & Truth table prediction
+        logits, tts = self.model(batch, hf)
+        #TODO:sigmoid or not
+        logits = self.sigmoid(logits)
+
+        loss = self.bce(logits,tts.float())
+
+        #compute hamming distance
+        pred_tt = torch.where(logits>0.5,1,0)
+        dist = torch.mean(torch.sum(torch.abs(pred_tt - tts),dim=1))
+
+        loss_status = {
+            'cls_loss': loss,
+            'dist': dist,
+        }
+        
+        return loss_status
+
     
     def train(self, num_epoch, train_dataset, val_dataset):
         # Distribute Dataset
@@ -190,9 +215,10 @@ class Trainer():
                     bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
                 for iter_id, batch in enumerate(dataset):
                     batch = batch.to(self.device)
-                    emb = self.model(batch)
+                    # emb = self.model(batch)
+                    loss = self.run_batch(batch)
                     time_stamp = time.time()
-                    pass
+                    
                 
                 del dataset
             
