@@ -103,6 +103,7 @@ class AIGParser():
                 graph.backward_index = backward_index
                 graph.forward_level = forward_level
                 graph.backward_level = backward_level
+                graph.name = os.path.basename(aig_path)
                 data_list.append(graph)
             
                 if self.debug and len(data_list) >= 10:

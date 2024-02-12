@@ -19,13 +19,18 @@ def get_parse_args():
     
     # Transformer 
     parser.add_argument('--tf_arch', default='plain', type=str)
-    parser.add_argument('--TF_depth', default=6, type=int)
-    parser.add_argument('--token_emb', default=256, type=int)
-    parser.add_argument('--tf_emb_size', default=256, type=int)
+    parser.add_argument('--TF_depth', default=4, type=int)
+    parser.add_argument('--token_emb', default=128, type=int)
+    parser.add_argument('--tf_emb_size', default=128, type=int)
     parser.add_argument('--head_num', default=8, type=int)
     parser.add_argument('--MLP_expansion', default=4, type=int)
     parser.add_argument('--k_hop', default=4, type=float)
-    parser.add_argument('--hop_record', action='store_true')
+    
+    # Mask Prediction 
+    parser.add_argument('--mlp_hidden', default=128, type=int)
+    parser.add_argument('--mlp_layer', default=3, type=int)
+    parser.add_argument('--norm_layer', default='batchnorm', type=str)
+    parser.add_argument('--act_layer', default='relu', type=str)
     
     # Train
     parser.add_argument('--en_distrubuted', action='store_true')
@@ -35,6 +40,12 @@ def get_parse_args():
     parser.add_argument('--stage2_steps', default=50, type=int)
     parser.add_argument('--lr', default=3e-4, type=float)
     parser.add_argument('--loss', default='l2', type=str)
+    
+    # Loss weight
+    parser.add_argument('--w_prob', default=1.0, type=float)
+    parser.add_argument('--w_tt_sim', default=1.0, type=float)
+    parser.add_argument('--w_tt_cls', default=1.0, type=float)
+    parser.add_argument('--w_g_sim', default=1.0, type=float)
     
     args = parser.parse_args()
     

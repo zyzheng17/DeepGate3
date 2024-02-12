@@ -3,6 +3,7 @@ import os
 import torch
 from torch import nn
 import time
+import random
 from progress.bar import Bar
 from torch_geometric.loader import DataLoader
 import copy
@@ -12,15 +13,93 @@ from deepgate.utils.logger import Logger
 import torch.nn.functional as F
 import numpy as np
 from utils.utils import normalize_1
+from utils.dag_utils import get_all_hops
+from utils.circuit_utils import complete_simulation, random_simulation
 
 import networkx as nx
 from scipy.optimize import linear_sum_assignment
 
 TT_DIFF_RANGE = [0.2, 0.8]
 
+def sample_structural_sim(subgraph, sample_cnt=100):
+    stru_sim = []
+    candidate_index = list(subgraph.keys())
+    init_pair_idx = [random.sample(candidate_index, min(sample_cnt, len(candidate_index))), random.sample(candidate_index, min(sample_cnt, len(candidate_index)))]
+    pair_idx = []
+    for pair_k in range(sample_cnt):
+        g1 = nx.DiGraph()
+        g2 = nx.DiGraph()
+        graph1 = subgraph[init_pair_idx[0][pair_k]]
+        graph2 = subgraph[init_pair_idx[1][pair_k]]
+        for edge_idx in range(len(graph1['edges'][0])):
+            g1.add_edge(graph1['edges'][0][edge_idx], graph1['edges'][1][edge_idx])
+        for edge_idx in range(len(graph2['edges'][0])):
+            g2.add_edge(graph2['edges'][0][edge_idx], graph2['edges'][1][edge_idx])
+        one_sim = nx.graph_edit_distance(g1, g2, timeout=0.1)
+        stru_sim.append(one_sim)
+        pair_idx.append([init_pair_idx[0][pair_k], init_pair_idx[1][pair_k]])
+    stru_sim = torch.tensor(stru_sim)
+    pair_idx = torch.tensor(pair_idx)
+    return stru_sim, pair_idx
+
+def sample_functional_tt(subgraph, sample_cnt=100):
+    tt_list = []
+    no_pi_list = []
+    sample_list = []
+    candidate_index = list(subgraph.keys())
+    sample_list = random.sample(candidate_index, min(sample_cnt, len(candidate_index)))
+    for idx in sample_list:
+        if idx not in subgraph:
+            continue
+        g = subgraph[idx]
+        tt_bin, no_pi = complete_simulation(g)
+        tt_list.append(tt_bin)
+        no_pi_list.append(no_pi)
+    
+    return tt_list, no_pi_list, sample_list
+
+def DeepGate2_Tasks(graph, sample_cnt = 100):
+    prob, full_states, level_list, fanin_list = random_simulation(graph, 1024)
+    # PI Cover
+    pi_cover = [[] for _ in range(len(prob))]
+    for level in range(len(level_list)):
+        for idx in level_list[level]:
+            if level == 0:
+                pi_cover[idx].append(idx)
+            tmp_pi_cover = []
+            for pre_k in fanin_list[idx]:
+                tmp_pi_cover += pi_cover[pre_k]
+            tmp_pi_cover = list(set(tmp_pi_cover))
+            pi_cover[idx] += tmp_pi_cover
+    # Sample 
+    sample_idx = []
+    tt_sim_list = []
+    for _ in range(sample_cnt):
+        while True:
+            node_a = random.randint(0, len(prob)-1)
+            node_b = random.randint(0, len(prob)-1)
+            if node_a == node_b:
+                continue
+            if pi_cover[node_a] != pi_cover[node_b]:
+                continue
+            if abs(prob[node_a] - prob[node_b]) > 0.1:
+                continue
+            tt_dis = (full_states[node_a] != full_states[node_b]).sum() / len(full_states[node_a])
+            if tt_dis > 0.2 and tt_dis < 0.8:
+                continue
+            if tt_dis == 0 or tt_dis == 1:
+                continue
+            break
+        sample_idx.append([node_a, node_b])
+        tt_sim_list.append(1-tt_dis)
+    
+    tt_index = torch.tensor(sample_idx)
+    tt_sim = torch.tensor(tt_sim_list)
+    return prob, tt_index, tt_sim
+
 class Trainer():
-    def __init__(self,
-                 tokenizer,
+    def __init__(self, 
+                 args, 
                  model, 
                  training_id = 'default',
                  save_dir = './exp', 
@@ -35,6 +114,7 @@ class Trainer():
                  ):
         super(Trainer, self).__init__()
         # Config
+        self.args = args
         self.emb_dim = emb_dim
         self.device = device
         self.lr = lr
@@ -80,6 +160,7 @@ class Trainer():
             raise NotImplementedError
         self.sigmoid = nn.Sigmoid()
         self.bce = nn.BCELoss().to(self.device)
+        self.l1_loss = nn.L1Loss().to(self.device)
         self.ce = nn.CrossEntropyLoss(reduction='mean').to(self.device)
         self.cos_sim = nn.CosineSimilarity(dim=2, eps=1e-6).to(self.device)
         # self.reg_loss = nn.L1Loss().to(self.device)
@@ -87,7 +168,6 @@ class Trainer():
         self.optimizer = torch.optim.Adam(model.parameters(), lr=self.lr)
         
         # Model
-        self.tokenizer = tokenizer.to(self.device)
         self.model = model.to(self.device)
         self.model_epoch = 0
         
@@ -150,24 +230,45 @@ class Trainer():
             return False
 
     def run_batch(self, batch):
+        subgraph = get_all_hops(batch, self.args.k_hop)
         
-        #initial token emb by dg2
-        hs, hf = self.tokenizer(batch)
+        hs, hf, hop_hs, hop_hf = self.model(batch, subgraph)
+        
+        # DG2 Tasks
+        prob, tt_index, tt_sim = DeepGate2_Tasks(batch)
+        pred_prob = self.model.prob_pred(hf).to(self.device)
+        prob = prob.unsqueeze(1).to(self.device)
+        l_fprob = self.l1_loss(pred_prob, prob)
+        pred_tt_sim = torch.cosine_similarity(hf[tt_index[:, 0]], hf[tt_index[:, 1]], eps=1e-8)
+        pred_tt_sim = normalize_1(pred_tt_sim).float().to(self.device)
+        tt_sim = normalize_1(tt_sim).float().to(self.device)
+        l_fttsim = self.l1_loss(pred_tt_sim, tt_sim)
+        
+        # Functional Tasks
+        l_ftt = 0
+        tt_list, no_pi_list, sample_list = sample_functional_tt(subgraph, 100)
+        for graph_k, idx in enumerate(sample_list):
+            if no_pi_list[graph_k] > 6:
+                continue
+            pred_tt = self.model.pred_tt(hop_hs[idx], no_pi_list[graph_k])
+            label_tt = torch.tensor(tt_list[graph_k])
+            pred_tt = pred_tt.to(self.device)
+            label_tt = label_tt.to(self.device)
+            l_ftt += self.bce(pred_tt, label_tt.float())
+        l_ftt /= len(sample_list)
 
-        #mask graph modeling & Truth table prediction
-        logits, tts = self.model(batch, hf)
-        #TODO:sigmoid or not
-        logits = self.sigmoid(logits)
-
-        loss = self.bce(logits,tts.float())
-
-        #compute hamming distance
-        pred_tt = torch.where(logits>0.5,1,0)
-        dist = torch.mean(torch.sum(torch.abs(pred_tt - tts),dim=1))
-
+        # Structural Tasks
+        stru_sim, pair_idx = sample_structural_sim(subgraph, 32)
+        hs_sim = torch.cosine_similarity(hop_hs[pair_idx[:, 0]], hop_hs[pair_idx[:, 1]], eps=1e-8)
+        stru_sim = normalize_1(stru_sim).float().to(self.device)
+        hs_sim = normalize_1(hs_sim).float().to(self.device)
+        l_ssim = self.l1_loss(hs_sim, stru_sim)
+        
         loss_status = {
-            'cls_loss': loss,
-            'dist': dist,
+            'prob': l_fprob,
+            'tt_sim': l_fttsim,
+            'tt_cls': l_ftt,
+            'g_sim': l_ssim,
         }
         
         return loss_status
@@ -215,9 +316,23 @@ class Trainer():
                     bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
                 for iter_id, batch in enumerate(dataset):
                     batch = batch.to(self.device)
-                    # emb = self.model(batch)
-                    loss = self.run_batch(batch)
+                    loss_dict = self.run_batch(batch)
                     time_stamp = time.time()
+                    loss = (loss_dict['prob'] * self.args.w_prob + \
+                            loss_dict['tt_sim'] * self.args.w_tt_sim + \
+                            loss_dict['tt_cls'] * self.args.w_tt_cls + \
+                            loss_dict['g_sim'] * self.args.w_g_sim) / (self.args.w_prob + self.args.w_tt_sim + self.args.w_tt_cls + self.args.w_g_sim)
+                    if phase == 'train':
+                        self.optimizer.zero_grad()
+                        loss.backward()
+                        self.optimizer.step()
+                    if self.local_rank == 0:
+                        bar.suffix = '({phase}) Epoch: {epoch} | Iter: {iter} | Time: {time:.4f}'.format(
+                            phase=phase, epoch=epoch, iter=iter_id, time=time.time()-time_stamp
+                        )
+                        for loss_key in loss_dict:
+                            bar.suffix += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                        bar.next()
                     
                 
                 del dataset

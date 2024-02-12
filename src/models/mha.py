@@ -21,14 +21,14 @@ from torch import Tensor
 from torchvision.transforms import Compose, Resize, ToTensor
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args, token_dim):
         super().__init__()
         self.args = args
 
-        self.emb_size = args.tf_emb_size
+        self.emb_size = token_dim
         self.num_heads = args.head_num
         # fuse the queries, keys and values in one matrix
-        self.qkv = nn.Linear(args.token_emb, self.emb_size * 3 * self.num_heads)
+        self.qkv = nn.Linear(self.emb_size, self.emb_size * 3 * self.num_heads)
         self.att_drop = nn.Dropout(args.dropout)
         self.projection = nn.Linear(self.emb_size * self.num_heads, self.emb_size)
         
@@ -61,25 +61,25 @@ class ResidualAdd(nn.Module):
         return x
 
 class FeedForwardBlock(nn.Sequential):
-    def __init__(self, args):
+    def __init__(self, args, token_dim):
         super().__init__(
-            nn.Linear(args.tf_emb_size, args.MLP_expansion * args.tf_emb_size),
+            nn.Linear(token_dim, args.MLP_expansion * token_dim),
             nn.GELU(),
             nn.Dropout(args.dropout),
-            nn.Linear(args.MLP_expansion * args.tf_emb_size, args.tf_emb_size),
+            nn.Linear(args.MLP_expansion * token_dim, token_dim),
         )
 
 class TransformerEncoderBlock(nn.Sequential):
-    def __init__(self, args):
+    def __init__(self, args, token_dim):
         super().__init__(
             ResidualAdd(nn.Sequential(
-                nn.LayerNorm(args.token_emb),
-                MultiHeadAttention(args),
+                nn.LayerNorm(token_dim),
+                MultiHeadAttention(args, token_dim),
                 nn.Dropout(args.dropout)
             )),
             ResidualAdd(nn.Sequential(
-                nn.LayerNorm(args.tf_emb_size),
-                FeedForwardBlock(args),
+                nn.LayerNorm(token_dim),
+                FeedForwardBlock(args, token_dim),
                 nn.Dropout(args.dropout)
             )
             ))
