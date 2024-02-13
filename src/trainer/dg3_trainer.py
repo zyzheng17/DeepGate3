@@ -230,8 +230,9 @@ class Trainer():
             return False
 
     def run_batch(self, batch):
-        subgraph = get_all_hops(batch, self.args.k_hop)
-        
+        # Get all subgraph (k-hops)
+        subgraph = get_all_hops(batch, self.args.k_hop) 
+        # Get embeddings: hs/hf node-level, hop_hs/hop_hf graph-level
         hs, hf, hop_hs, hop_hf = self.model(batch, subgraph)
         
         # DG2 Tasks
@@ -244,7 +245,7 @@ class Trainer():
         tt_sim = normalize_1(tt_sim).float().to(self.device)
         l_fttsim = self.l1_loss(pred_tt_sim, tt_sim)
         
-        # Functional Tasks
+        # Functional Tasks (Graph mask prediction)
         l_ftt = 0
         tt_list, no_pi_list, sample_list = sample_functional_tt(subgraph, 100)
         for graph_k, idx in enumerate(sample_list):
@@ -252,6 +253,8 @@ class Trainer():
                 continue
             pred_tt = self.model.pred_tt(hop_hs[idx], no_pi_list[graph_k])
             label_tt = torch.tensor(tt_list[graph_k])
+            while len(label_tt) < 64:
+                label_tt = torch.cat([label_tt, label_tt])
             pred_tt = pred_tt.to(self.device)
             label_tt = label_tt.to(self.device)
             l_ftt += self.bce(pred_tt, label_tt.float())

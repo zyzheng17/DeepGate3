@@ -19,6 +19,7 @@ class DeepGate3(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
+        self.max_tt_len = 64
         
         # Tokenizer
         self.tokenizer = DeepGate2()
@@ -40,7 +41,7 @@ class DeepGate3(nn.Module):
         )
         self.hs_pool = tf_Pooling(args)
         self.hf_pool = tf_Pooling(args)
-        self.tt_pred = [nn.Sequential(nn.Linear(self.args.token_emb, 1), nn.Sigmoid()) for _ in range(64)]
+        self.tt_pred = [nn.Sequential(nn.Linear(self.args.token_emb, 1), nn.Sigmoid()) for _ in range(self.max_tt_len)]
         self.prob_pred = nn.Sequential(nn.Linear(self.args.token_emb, self.args.token_emb), nn.ReLU(), nn.Linear(self.args.token_emb, 1), nn.ReLU())
         
     def forward(self, g, subgraph):
@@ -63,7 +64,7 @@ class DeepGate3(nn.Module):
     
     def pred_tt(self, graph_emb, no_pi):
         tt = []
-        for pi in range(int(pow(2, no_pi))):
+        for pi in range(self.max_tt_len):
             tt.append(self.tt_pred[pi](graph_emb))
         tt = torch.tensor(tt).squeeze()
         return tt
