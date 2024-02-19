@@ -10,6 +10,23 @@ from typing import Optional, Callable, List
 import os.path as osp
 sys.path.append('/research/d1/gds/zyzheng23/projects/deepgate3/src')
 from utils.dataset_utils import parse_pyg_dg3
+class OrderedData(Data):
+    def __init__(self): 
+        super().__init__()
+    
+    def __inc__(self, key, value, *args, **kwargs):
+        if 'index' in key or 'face' in key:
+            return self.num_nodes
+        else:
+            return 0
+
+    def __cat_dim__(self, key, value, *args, **kwargs):
+        if key == 'forward_index' or key == 'backward_index':
+            return 0
+        elif key == "edge_index" or key == 'tt_pair_index' or key == 'rc_pair_index':
+            return 1
+        else:
+            return 0
 
 class NpzParser():
     def __init__(self, data_dir, circuit_path, random_shuffle=True, trainval_split=0.9, debug=False):
@@ -67,12 +84,36 @@ class NpzParser():
             for cir_idx, cir_name in enumerate(circuits):
                 print('Parse circuit: {}, {:} / {:} = {:.2f}%'.format(cir_name, cir_idx, len(circuits), cir_idx / len(circuits) * 100))
 
-                x_data = circuits[cir_name]['x_data']
+                x_data = circuits[cir_name]['x']
+                x_one_hot = dg.construct_node_feature(x_data, 3)
                 edge_index = circuits[cir_name]['edge_index']
-                tt = circuits[cir_name]['tt']
-                graph = parse_pyg_dg3(x_data, edge_index, tt)
-                graph.name = cir_name
+                edge_index = torch.tensor(edge_index, dtype=torch.long)
+                
+                if x_data.shape[0]>512:
+                    continue
 
+                # tt = circuits[cir_name]['tt']
+                if len(edge_index) == 0:
+                    edge_index = edge_index.t().contiguous()
+                    forward_index = torch.LongTensor([i for i in range(len(x))])
+                    backward_index = torch.LongTensor([i for i in range(len(x))])
+                    forward_level = torch.zeros(len(x))
+                    backward_level = torch.zeros(len(x))
+                else:
+                    edge_index = edge_index.t().contiguous()
+                    forward_level, forward_index, backward_level, backward_index = dg.return_order_info(edge_index, x_one_hot.size(0))
+
+                # graph = parse_pyg_dg3(x_one_hot, edge_index, tt)
+                graph = OrderedData()
+                graph.x = x_one_hot
+                graph.edge_index = edge_index
+                graph.name = cir_name
+                graph.gate = torch.tensor(x_data[:, 1], dtype=torch.long)
+                graph.forward_index = forward_index
+                graph.backward_index = backward_index
+                graph.forward_level = forward_level
+                graph.backward_level = backward_level
+                
                 data_list.append(graph)
                 
                 if self.debug and cir_idx > 10000:

@@ -27,7 +27,8 @@ if __name__ == '__main__':
         os.makedirs(args.data_dir)
         
     # Dataset
-    parser = AIGParser(args.data_dir, args.circuit_path, debug=args.debug, random_shuffle=False)
+    # parser = AIGParser(args.data_dir, args.circuit_path, debug=args.debug, random_shuffle=False)
+    parser = NpzParser(args.data_dir, args.circuit_path, debug=args.debug, random_shuffle=False)
     train_dataset, val_dataset = parser.get_dataset()
     
     # Create Model 
@@ -40,6 +41,6 @@ if __name__ == '__main__':
         distributed=args.en_distrubuted, training_id=args.exp_id, batch_size=args.batch_size, device=args.device, 
         loss=args.loss
     )
-    trainer.train(30, train_dataset, val_dataset)
+    trainer.train(args.epoch, train_dataset, val_dataset)
     
     

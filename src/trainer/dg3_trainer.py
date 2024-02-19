@@ -12,8 +12,10 @@ from deepgate.utils.utils import zero_normalization, AverageMeter, get_function_
 from deepgate.utils.logger import Logger
 import torch.nn.functional as F
 import numpy as np
+import sys
+sys.path.append('/uac/gds/zyzheng23/projects/DeepGate3-Transformer/src')
 from utils.utils import normalize_1
-from utils.dag_utils import get_all_hops
+from utils.dag_utils import get_all_hops,get_random_hop
 from utils.circuit_utils import complete_simulation, random_simulation
 
 import networkx as nx
@@ -133,7 +135,7 @@ class Trainer():
         self.num_workers = num_workers
         self.distributed = distributed
         self.loss = loss
-        
+        self.hop_per_circuit = 4
         # Distributed Training 
         self.local_rank = 0
         if self.distributed:
@@ -276,6 +278,41 @@ class Trainer():
         
         return loss_status
 
+    def run_batch_mask(self, batch):
+        # Get all subgraph (k-hops)
+
+        subgraph = get_random_hop(batch, self.args.k_hop, hop_per_circuit=self.hop_per_circuit)
+        # Get embeddings: hs/hf node-level, hop_hs/hop_hf graph-level
+        logits = self.model(batch, subgraph)
+        
+        # Functional Tasks (Graph mask prediction)
+        l_ftt = 0
+        hamming_dist = 0
+        tt_list, no_pi_list, sample_list = sample_functional_tt(subgraph, 100)
+        for graph_k, idx in enumerate(sample_list):
+            if no_pi_list[graph_k] > 6:
+                continue
+            pred_prob = nn.Sigmoid()(logits[idx]).to(self.device)
+            pred_tt = torch.where(pred_prob>0.5,1,0)
+            label_tt = torch.tensor(tt_list[graph_k])
+            while len(label_tt) < 64:
+                label_tt = torch.cat([label_tt, label_tt])
+            pred_tt = pred_tt.to(self.device)
+            label_tt = label_tt.to(self.device)
+            l_ftt += self.bce(pred_prob, label_tt.float())
+            hamming_dist += torch.mean(torch.abs(pred_tt.float()-label_tt.float()))
+        l_ftt /= len(sample_list)
+        hamming_dist /= len(sample_list)
+
+        loss_status = {
+            'prob': 0,
+            'tt_sim': 0,
+            'tt_cls': l_ftt,
+            'g_sim': 0,
+        }
+        
+        return loss_status,hamming_dist
+
     
     def train(self, num_epoch, train_dataset, val_dataset):
         # Distribute Dataset
@@ -319,7 +356,8 @@ class Trainer():
                     bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
                 for iter_id, batch in enumerate(dataset):
                     batch = batch.to(self.device)
-                    loss_dict = self.run_batch(batch)
+                    # loss_dict = self.run_batch(batch)
+                    loss_dict,hamming_dist = self.run_batch_mask(batch)
                     time_stamp = time.time()
                     loss = (loss_dict['prob'] * self.args.w_prob + \
                             loss_dict['tt_sim'] * self.args.w_tt_sim + \
@@ -330,13 +368,22 @@ class Trainer():
                         loss.backward()
                         self.optimizer.step()
                     if self.local_rank == 0:
-                        bar.suffix = '({phase}) Epoch: {epoch} | Iter: {iter} | Time: {time:.4f}'.format(
+                        # bar.suffix = '({phase}) Epoch: {epoch} | Iter: {iter} | Time: {time:.4f}'.format(
+                        #     phase=phase, epoch=epoch, iter=iter_id, time=time.time()-time_stamp
+                        # )
+                        # for loss_key in loss_dict:
+                        #     if loss_dict[loss_key] !=0:
+                        #         bar.suffix += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                        # bar.suffix += ' | hamming_dist: {:.4f}'.format(hamming_dist)
+                        # bar.next()
+                        output_log = '({phase}) Epoch: {epoch} | Iter: {iter} | Time: {time:.4f}'.format(
                             phase=phase, epoch=epoch, iter=iter_id, time=time.time()-time_stamp
                         )
                         for loss_key in loss_dict:
-                            bar.suffix += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
-                        bar.next()
-                    
+                            if loss_dict[loss_key] !=0:
+                                output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                        output_log += ' | hamming_dist: {:.4f}'.format(hamming_dist)
+                        print(output_log)
                 
                 del dataset
             

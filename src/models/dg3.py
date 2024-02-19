@@ -20,6 +20,7 @@ class DeepGate3(nn.Module):
         super().__init__()
         self.args = args
         self.max_tt_len = 64
+        self.hidden = 128
         
         # Tokenizer
         self.tokenizer = DeepGate2()
@@ -44,6 +45,13 @@ class DeepGate3(nn.Module):
         self.tt_pred = [nn.Sequential(nn.Linear(self.args.token_emb, 1), nn.Sigmoid()) for _ in range(self.max_tt_len)]
         self.prob_pred = nn.Sequential(nn.Linear(self.args.token_emb, self.args.token_emb), nn.ReLU(), nn.Linear(self.args.token_emb, 1), nn.ReLU())
         
+        self.cls_head = nn.Sequential(nn.Linear(self.hidden, self.hidden*4),
+                        nn.ReLU(),
+                        nn.LayerNorm(self.hidden*4),
+                        nn.Linear(self.hidden*4, self.max_tt_len))
+
+
+
     def forward(self, g, subgraph):
         
         # Tokenizer
@@ -51,16 +59,23 @@ class DeepGate3(nn.Module):
         
         # Transformer 
         # tf_hs, tf_hf = hs, hf
-        tf_hs, tf_hf = self.transformer(hs, hf, subgraph)
+        bs = g.batch[-1]+1
+        # tf_hs, tf_hf = self.transformer(g, hs, hf, subgraph)
+        hf_dict = self.transformer(g, hs, hf, subgraph)
         
         # Pooling 
-        hop_hs = torch.zeros(len(g.gate), self.args.token_emb).to(self.args.device)
-        hop_hf = torch.zeros(len(g.gate), self.args.token_emb).to(self.args.device)
+        hop_hs = None
+        # hop_hs = torch.zeros(len(g.gate), self.args.token_emb).to(self.args.device)
+        # hop_hf = torch.zeros(len(g.gate), self.args.token_emb).to(self.args.device)
+        hop_hf = {}
+        logits = {}
         for idx in subgraph.keys():
-            hop_hs[idx] = self.hs_pool(torch.cat([tf_hs[subgraph[idx]['pos'].long()], tf_hs[subgraph[idx]['pis'].long()]], dim=0))
-            hop_hf[idx] = self.hf_pool(torch.cat([tf_hf[subgraph[idx]['pos'].long()], tf_hf[subgraph[idx]['pis'].long()]], dim=0))
+            # hop_hs[idx] = self.hs_pool(torch.cat([tf_hs[subgraph[idx]['pos'].long()], tf_hs[subgraph[idx]['pis'].long()]], dim=0))
+            # hop_hf[idx] = self.hf_pool(torch.cat([tf_hf[subgraph[idx]['pos'].long()], tf_hf[subgraph[idx]['pis'].long()]], dim=0))
+            hop_hf[idx] = self.hf_pool(torch.cat([hf_dict[idx]['pi_emb'],hf_dict[idx]['po_emb']], dim=0))
+            logits[idx] = self.cls_head(hop_hf[idx])
         
-        return tf_hs, tf_hf, hop_hs, hop_hf
+        return logits
     
     def pred_tt(self, graph_emb, no_pi):
         tt = []
