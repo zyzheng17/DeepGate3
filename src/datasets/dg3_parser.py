@@ -160,6 +160,8 @@ class NpzParser():
                     hop_gates = graph.gate[hop_nodes]
                     hop_pis = hop_nodes[(hop_forward_level==0) & (hop_backward_level!=0)]
                     hop_pos = hop_nodes[(hop_forward_level!=0) & (hop_backward_level==0)]
+                    if len(hop_pis) > 2**(self.args.k_hop-1):
+                        continue
                     
                     hop_pi_stats = [2] * len(hop_pis)  # -1 Padding, 0 Logic-0, 1 Logic-1, 2 variable
                     for assigned_pi_k in range(self.args.max_hop_pi, len(hop_pi_stats), 1):
