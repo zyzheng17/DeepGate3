@@ -94,7 +94,8 @@ def get_random_hop(g, hops=3,hop_per_circuit=4):
     bs = g.batch[-1]+1
     subgraph = {}
     for i in range(bs):
-        idx_list = torch.argwhere(g.batch==i).squeeze()
+        # idx_list = torch.argwhere(g.batch==i).squeeze()
+        idx_list = torch.nonzero(g.batch == i).squeeze()
         rand_idx_list = torch.randint(idx_list[0]+hops,idx_list[-1],[hop_per_circuit])
         for idx in rand_idx_list:
             last_target_idx = copy.deepcopy([idx])
