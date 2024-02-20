@@ -7,10 +7,12 @@ from .dg2 import DeepGate2
 
 from .plain_tf import Plain_Transformer
 from .hop_tf import Hop_Transformer
+from .baseline_tf import Baseline_Transformer
 from .mlp import MLP
 from .tf_pool import tf_Pooling
 
 _transformer_factory = {
+    'baseline': Baseline_Transformer,
     'plain': Plain_Transformer,
     'hop': Hop_Transformer, 
 }

@@ -18,7 +18,7 @@ def get_parse_args():
     parser.add_argument('--dropout', default=0.1, type=float)
     
     # Transformer 
-    parser.add_argument('--tf_arch', default='plain', type=str)
+    parser.add_argument('--tf_arch', default='baseline', type=str)
     parser.add_argument('--TF_depth', default=4, type=int)
     parser.add_argument('--token_emb', default=128, type=int)
     parser.add_argument('--tf_emb_size', default=128, type=int)
