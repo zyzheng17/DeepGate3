@@ -12,6 +12,10 @@ def get_parse_args():
     # Dataset
     parser.add_argument('--data_dir', default='./DeepGate3-Transformer/data/train_dg3')
     parser.add_argument('--circuit_path', default='./DeepGate3-Transformer/data/train_dg3/graphs.npz')
+    parser.add_argument('--enable_large_circuit', action='store_true')
+    parser.add_argument('--hop_ratio', default=0.3, type=float)
+    parser.add_argument('--k_hop', default=4, type=int)
+    parser.add_argument('--max_hop_pi', default=6, type=int)
     
     # Model 
     parser.add_argument('--pretrained_model_path', default='./DeepGate3-Transformer/trained/model_last.pth')
@@ -24,7 +28,6 @@ def get_parse_args():
     parser.add_argument('--tf_emb_size', default=128, type=int)
     parser.add_argument('--head_num', default=8, type=int)
     parser.add_argument('--MLP_expansion', default=4, type=int)
-    parser.add_argument('--k_hop', default=4, type=float)
     
     # Mask Prediction 
     parser.add_argument('--mlp_hidden', default=128, type=int)
