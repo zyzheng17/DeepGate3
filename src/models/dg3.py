@@ -81,10 +81,10 @@ class DeepGate3(nn.Module):
 
 
             #transformer pooling
-            # hop_hf[idx] = self.hf_pool(torch.cat([hf_dict[idx]['pi_emb'],hf_dict[idx]['po_emb']], dim=0))
+            hop_hf[idx] = self.hf_pool(torch.cat([hf_dict[idx]['pi_emb'],hf_dict[idx]['po_emb']], dim=0))
 
             #average pooling
-            hop_hf[idx] = torch.mean(torch.cat([hf_dict[idx]['pi_emb'],hf_dict[idx]['po_emb']], dim=0))
+            # hop_hf[idx] = torch.mean(torch.cat([hf_dict[idx]['pi_emb'],hf_dict[idx]['po_emb']], dim=0))
             
             logits[idx] = self.cls_head(hop_hf[idx])
         
