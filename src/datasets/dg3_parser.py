@@ -4,6 +4,7 @@ import torch
 import os
 import copy
 import random
+import time
 from torch_geometric.data import Data, InMemoryDataset
 import sys
 
@@ -90,9 +91,15 @@ class NpzParser():
             data_list = []
             tot_pairs = 0
             circuits = read_npz_file(self.circuit_path)['circuits'].item()
+            tot_time = 0
             
             for cir_idx, cir_name in enumerate(circuits):
-                print('Parse circuit: {}, {:} / {:} = {:.2f}%'.format(cir_name, cir_idx, len(circuits), cir_idx / len(circuits) * 100))
+                start_time = time.time()
+                print('Parse: {}, {:} / {:} = {:.2f}%, ETA: {:.2f}s, Curr Size: {:}'.format(
+                    cir_name, cir_idx, len(circuits), cir_idx / len(circuits) * 100, 
+                    tot_time * len(circuits) / (cir_idx + 1), 
+                    len(data_list)
+                ))
 
                 x_data = circuits[cir_name]['x']
                 x_one_hot = dg.construct_node_feature(x_data, 3)
@@ -118,7 +125,10 @@ class NpzParser():
                 
                 # DeepGate2 (node-level) labels
                 prob, tt_pair_index, tt_sim = prepare_dg2_labels(graph)
-                tt_pair_index = tt_pair_index.t().contiguous()
+                if len(tt_pair_index) == 0:
+                    tt_pair_index = torch.zeros((2, 0), dtype=torch.long)
+                else:
+                    tt_pair_index = tt_pair_index.t().contiguous()
                 graph.prob = prob
                 graph.tt_pair_index = tt_pair_index
                 graph.tt_sim = tt_sim
@@ -188,8 +198,8 @@ class NpzParser():
                 graph.all_tt = torch.tensor(all_tt, dtype=torch.long)
                 graph.all_no_hops = torch.tensor(all_no_hops, dtype=torch.long)
                     
-                
                 data_list.append(graph)
+                tot_time += time.time() - start_time
                 
                 if self.debug and cir_idx > 10:
                     break
