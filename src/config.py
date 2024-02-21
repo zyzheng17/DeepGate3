@@ -13,7 +13,7 @@ def get_parse_args():
     parser.add_argument('--data_dir', default='./DeepGate3-Transformer/data/train_dg3')
     parser.add_argument('--circuit_path', default='./DeepGate3-Transformer/data/train_dg3/graphs.npz')
     parser.add_argument('--enable_large_circuit', action='store_true')
-    parser.add_argument('--hop_ratio', default=0.3, type=float)
+    parser.add_argument('--hop_ratio', default=0.15, type=float)
     parser.add_argument('--k_hop', default=4, type=int)
     parser.add_argument('--max_hop_pi', default=6, type=int)
     
@@ -56,6 +56,6 @@ def get_parse_args():
     args.gpus_str = args.gpus
     args.gpus = [int(gpu) for gpu in args.gpus.split(',')]
     args.gpus = [i for i in range(len(args.gpus))] if args.gpus[0] >=0 else [-1]
-    args.device = torch.device('cuda:4' if args.gpus[0] >= 0 and torch.cuda.is_available() else 'cpu')
+    args.device = torch.device('cuda:6' if args.gpus[0] >= 0 and torch.cuda.is_available() else 'cpu')
     
     return args

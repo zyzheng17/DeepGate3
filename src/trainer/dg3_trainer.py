@@ -301,6 +301,8 @@ class Trainer():
             label_tt = label_tt.to(self.device)
             l_ftt += self.bce(pred_prob, label_tt.float())
             hamming_dist += torch.mean(torch.abs(pred_tt.float()-label_tt.float()))
+            print(label_tt)
+            
         l_ftt /= len(sample_list)
         hamming_dist /= len(sample_list)
 
@@ -390,10 +392,12 @@ class Trainer():
                     torch.cuda.empty_cache()
                 if self.local_rank == 0:
                     bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
+                hamming_list = []
                 for iter_id, batch in enumerate(dataset):
                     batch = batch.to(self.device)
                     # loss_dict = self.run_batch(batch)
                     loss_dict,hamming_dist = self.run_batch_mask(batch)
+                    hamming_list.append(hamming_dist)
                     time_stamp = time.time()
                     loss = (loss_dict['prob'] * self.args.w_prob + \
                             loss_dict['tt_sim'] * self.args.w_tt_sim + \
@@ -420,8 +424,9 @@ class Trainer():
                                 output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
                         output_log += ' | hamming_dist: {:.4f}'.format(hamming_dist)
                         print(output_log)
+                print(f'overall hamming distance:{torch.mean(torch.tensor(hamming_list))}')
                 
-                del dataset
+                # del dataset
             
             # Learning rate decay
             self.model_epoch += 1
@@ -432,6 +437,6 @@ class Trainer():
                 for param_group in self.optimizer.param_groups:
                     param_group['lr'] = self.lr
                     
-        del train_dataset
-        del val_dataset
+        # del train_dataset
+        # del val_dataset
         
