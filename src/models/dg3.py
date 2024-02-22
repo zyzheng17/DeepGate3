@@ -16,7 +16,7 @@ from .mlp import MLP
 from .tf_pool import tf_Pooling
 
 _transformer_factory = {
-    'baseline': Baseline_Transformer,
+    'baseline': None,
     'plain': Plain_Transformer,
     'hop': Hop_Transformer, 
 }
@@ -29,13 +29,14 @@ class DeepGate3(nn.Module):
         self.args = args
         self.max_tt_len = 64
         self.hidden = 128
-        
+        self.tf_arch = args.tf_arch
         # Tokenizer
         self.tokenizer = DeepGate2()
         self.tokenizer.load_pretrained(args.pretrained_model_path)
         
         # Transformer 
-        self.transformer = _transformer_factory[args.tf_arch](args)
+        if args.tf_arch != 'baseline':
+            self.transformer = _transformer_factory[args.tf_arch](args)
         
         # Prediction 
         self.mask_pred_hs = MLP(
@@ -74,7 +75,8 @@ class DeepGate3(nn.Module):
         hs, hf = self.tokenizer(g)
         
         # Refine-Transformer 
-        hf = self.transformer(g, hs, hf)
+        if self.tf_arch != 'baseline':
+            hf = self.transformer(g, hs, hf)
 
         #gate-level pretrain task : predict global probability
         #TODO
