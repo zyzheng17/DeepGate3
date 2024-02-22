@@ -349,13 +349,13 @@ class Trainer():
                 num_replicas=self.world_size,
                 rank=self.rank
             )
-            train_dataset = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=False, drop_last=True,
+            train_dataset = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True,
                                     num_workers=self.num_workers, sampler=train_sampler)
-            val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, drop_last=True,
+            val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True,
                                      num_workers=self.num_workers, sampler=val_sampler)
         else:
-            train_dataset = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=False, drop_last=True, num_workers=self.num_workers)
-            val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, drop_last=True, num_workers=self.num_workers)
+            train_dataset = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=self.num_workers)
+            val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=self.num_workers)
         
         # AverageMeter
         print(f'save model to {self.log_dir}')
@@ -382,6 +382,8 @@ class Trainer():
 
                 for iter_id, batch in enumerate(dataset):
                     batch = batch.to(self.device)
+                    print(torch.mean(batch.all_tt.float()))
+                    continue
                     # loss_dict = self.run_batch(batch)
                     loss_dict,hamming_dist = self.run_batch_mask(batch)
                     hamming_list.append(hamming_dist)

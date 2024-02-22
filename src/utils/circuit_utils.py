@@ -1,5 +1,6 @@
 import random 
 import torch
+from utils.utils import run_command
 
 def logic(gate_type, signals):
     if gate_type == 1:  # AND
@@ -97,8 +98,8 @@ def random_simulation(g, patterns=10000):
     full_states = torch.tensor(full_states)
     return prob, full_states, level_list, fanin_list
 
-def prepare_dg2_labels(graph):
-    prob, full_states, level_list, fanin_list = random_simulation(graph, 1500)
+def prepare_dg2_labels(graph, no_patterns=10000):
+    prob, full_states, level_list, fanin_list = random_simulation(graph, no_patterns)
     # PI Cover
     pi_cover = [[] for _ in range(len(prob))]
     for level in range(len(level_list)):
@@ -132,5 +133,88 @@ def prepare_dg2_labels(graph):
     
     tt_index = torch.tensor(sample_idx)
     tt_sim = torch.tensor(tt_sim_list)
+    return prob, tt_index, tt_sim
+
+def prepare_dg2_labels_cpp(g, no_patterns=10000, 
+                           simulator='./src/simulator/simulator', 
+                           graph_filepath='./tmp/graph.txt', 
+                           res_filepath='./tmp/res.txt'):
+    # Parse graph 
+    PI_index = g['forward_index'][(g['forward_level'] == 0) & (g['backward_level'] != 0)]
+    no_pi = len(PI_index)
+    no_nodes = len(g['forward_index'])
+    level_list = [[] for I in range(g['forward_level'].max()+1)]
+    fanin_list = [[] for _ in range(no_nodes)]
+    for edge in g['edge_index'].t():
+        fanin_list[edge[1].item()].append(edge[0].item())
+    for k, idx in enumerate(g['forward_index']):
+        level_list[g['forward_level'][k].item()].append(k)
+    
+    # PI Cover
+    pi_cover = [[] for _ in range(no_nodes)]
+    for level in range(len(level_list)):
+        for idx in level_list[level]:
+            if level == 0:
+                pi_cover[idx].append(idx)
+            tmp_pi_cover = []
+            for pre_k in fanin_list[idx]:
+                tmp_pi_cover += pi_cover[pre_k]
+            tmp_pi_cover = list(set(tmp_pi_cover))
+            pi_cover[idx] += tmp_pi_cover
+    
+    # Sample TT pairs 
+    sample_idx = []
+    tt_sim_list = []
+    for node_a in range(0, no_nodes):
+        for node_b in range(node_a+1, no_nodes):
+            if pi_cover[node_a] != pi_cover[node_b]:
+                continue
+            if node_a in fanin_list[node_b] or node_b in fanin_list[node_a]:
+                continue
+            sample_idx.append([node_a, node_b])
+            tt_sim_list.append([-1])
+            
+    # Write graph to file
+    f = open(graph_filepath, 'w')
+    f.write('{} {} {}\n'.format(no_nodes, len(g['edge_index'][0]), no_patterns))
+    for idx in range(no_nodes):
+        f.write('{} {}\n'.format(g['gate'][idx].item(), g['forward_level'][idx].item()))
+    for edge in g['edge_index'].t():
+        f.write('{} {}\n'.format(edge[0].item(), edge[1].item()))
+    f.write('{}\n'.format(len(sample_idx)))
+    for pair in sample_idx:
+        f.write('{} {}\n'.format(pair[0], pair[1]))
+    f.close()
+    
+    # Simulation  
+    sim_cmd = '{} {} {}'.format(simulator, graph_filepath, res_filepath)
+    stdout, exec_time = run_command(sim_cmd)
+    f = open(res_filepath, 'r')
+    lines = f.readlines()
+    f.close()
+    prob = [-1] * no_nodes
+    for line in lines:
+        arr = line.replace('\n', '').split(' ')
+        prob[int(arr[0])] = float(arr[1])
+    for tt_pair_idx, pair in enumerate(sample_idx):
+        arr = lines[no_nodes + tt_pair_idx].replace('\n', '').split(' ')
+        assert pair[0] == int(arr[0]) and pair[1] == int(arr[1])
+        tt_sim_list[tt_pair_idx] = float(arr[2])
+    
+    tt_index = []
+    tt_sim = []
+    for pair_idx, pair in enumerate(sample_idx):
+        if tt_sim_list[pair_idx] < 0:
+            continue
+        if tt_sim_list[pair_idx] < 0.2 or tt_sim_list[pair_idx] > 0.8:
+            continue
+        tt_index.append(pair)
+        tt_sim.append(tt_sim_list[pair_idx])
+        tt_index.append([pair[1], pair[0]])
+        tt_sim.append(tt_sim_list[pair_idx])
+    tt_index = torch.tensor(tt_index)
+    tt_sim = torch.tensor(tt_sim)
+    prob = torch.tensor(prob)
+    
     return prob, tt_index, tt_sim
     
