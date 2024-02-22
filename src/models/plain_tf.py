@@ -31,8 +31,9 @@ class Plain_Transformer(nn.Sequential):
         super().__init__()
         self.args = args
         # self.tf_encoder_layers = [TransformerEncoderBlock(args).to(self.args.device) for _ in range(TF_depth)]
+        self.hidden = hidden
         self.record = {}
-        self.mask_token = nn.Parameter(torch.zeros([1,]))
+        self.mask_token = nn.Parameter(torch.randn([hidden,]))
         #TODO: the max_length should be the max number of gate in a circuit
         self.max_length = 512
         self.transformer_blocks = nn.ModuleList(
@@ -46,43 +47,27 @@ class Plain_Transformer(nn.Sequential):
         self.record = {}
 
     # def forward(self, g, subgraph):
-    def forward(self, g, hs, hf, subgraph):
-        initial_node_states = hf.detach().clone()
+    def forward(self, g, hs, hf):
 
-        # batch_idx = torch.randint(0,len(g.gate),[128,])
-        # Mask Graph Modeling
-        # random mask a hop and predict it
-        logits = []
-        tts = []
-        hf_dict = {}
-        mask_hop_states_list=[]
-        pis = []
-        pos = []
         hf = hf.detach()
-        for k in list(subgraph.keys()):
-            hop_nodes_idx = subgraph[k]['nodes']
-            batch_idx = g.batch[k]
-            mask_node_states = hf.clone()
-            mask_node_states[hop_nodes_idx] = self.mask_token
-            mask_hop_states = mask_node_states[torch.argwhere(g.batch==batch_idx)].squeeze(1)
-            mask_hop_states = torch.cat([mask_hop_states, \
-                                          torch.zeros([self.max_length - mask_hop_states.shape[0],mask_hop_states.shape[1]]).to(mask_hop_states.device)],dim=0)
-            mask_hop_states_list.append(mask_hop_states.unsqueeze(0))
-            
-            current_pi_idx = subgraph[k]['pis']-len(torch.argwhere(g.batch<batch_idx))
-            current_po_idx = subgraph[k]['pos']-len(torch.argwhere(g.batch<batch_idx))
-            pis.append(current_pi_idx)
-            pos.append(current_po_idx)
+        hs = hs.detach()
+        bs = g.batch_size
+        #mask po function embedding
+        hf[g.all_hop_po.squeeze()] = self.mask_token
+        mask_hop_states = torch.zeros([bs,self.max_length,self.hidden]).to(hf.device)
+        for i in range(bs):
+            batch_idx = torch.argwhere(g.batch==i).squeeze(-1)
+            # add hs as positional embedding
+            mask_hop_states[i] = torch.cat([hf[batch_idx] + hs[batch_idx], \
+                                            torch.zeros([self.max_length - hf[batch_idx].shape[0],hf[batch_idx].shape[1]]).to(hf.device)],dim=0)
 
-        mask_hop_states_list = torch.cat(mask_hop_states_list,dim=0) # bs x seq_len x emb_len
 
-        mask = (mask_hop_states_list[:,:,0] > 0).unsqueeze(1).repeat(1, mask_hop_states_list.size(1), 1).unsqueeze(1) 
+
+        mask = (mask_hop_states[:,:,0] != 0).unsqueeze(1).repeat(1, mask_hop_states.shape[1], 1).unsqueeze(1) 
         for transformer in self.transformer_blocks:
-            mask_hop_states_list = transformer.forward(mask_hop_states_list, mask)
+            mask_hop_states = transformer.forward(mask_hop_states, mask)
+        for i in range(bs):
+            batch_idx = torch.argwhere(g.batch==i).squeeze(-1)
+            hf[batch_idx] = mask_hop_states[i,:batch_idx.shape[0]]
         
-        for i,k in enumerate(list(subgraph.keys())):
-            hf_dict[k] = {}
-            hf_dict[k]['pi_emb'] = mask_hop_states_list[i][pis[i]]
-            hf_dict[k]['po_emb'] = mask_hop_states_list[i][pos[i]]
-            
-        return hf_dict
+        return hf

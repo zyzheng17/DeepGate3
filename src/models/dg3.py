@@ -21,6 +21,8 @@ _transformer_factory = {
     'hop': Hop_Transformer, 
 }
 
+import torch.nn as nn
+
 class DeepGate3(nn.Module):
     def __init__(self, args):
         super().__init__()
@@ -36,8 +38,6 @@ class DeepGate3(nn.Module):
         self.transformer = _transformer_factory[args.tf_arch](args)
         
         # Prediction 
-        self.hs_mask_token = nn.Parameter(torch.zeros([self.args.token_emb,]))
-        self.hf_mask_token = nn.Parameter(torch.zeros([self.args.token_emb,]))
         self.mask_pred_hs = MLP(
             dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=self.args.token_emb, 
             num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer=self.args.act_layer
@@ -46,6 +46,11 @@ class DeepGate3(nn.Module):
             dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=self.args.token_emb, 
             num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer=self.args.act_layer
         )
+
+        #pooling layer
+        # pool_layer = nn.TransformerEncoderLayer(d_model=self.hidden, nhead=4)
+        # self.tf_encoder = nn.TransformerEncoder(pool_layer, num_layers=3)
+
         self.hs_pool = tf_Pooling(args)
         self.hf_pool = tf_Pooling(args)
         self.tt_pred = [nn.Sequential(nn.Linear(self.args.token_emb, 1), nn.Sigmoid()) for _ in range(self.max_tt_len)]
@@ -58,35 +63,32 @@ class DeepGate3(nn.Module):
 
 
 
-    def forward(self, g, subgraph):
-        
+    def forward(self, g):
+        bs = g.batch_size
+        # subgraph = {}
+        # subgraph['pi'] = g.all_hop_pi
+        # subgraph['po'] = g.all_hop_po
+        # subgraph['pi_stats'] = g.all_hop_pi_stats
+        # subgraph['tt'] = g.all_tt
         # Tokenizer
         hs, hf = self.tokenizer(g)
         
-        # Transformer 
-        # tf_hs, tf_hf = hs, hf
-        bs = g.batch[-1]+1
-        # tf_hs, tf_hf = self.transformer(g, hs, hf, subgraph)
-        hf_dict = self.transformer(g, hs, hf, subgraph)
+        # Refine-Transformer 
+        hf = self.transformer(g, hs, hf)
+
+        #gate-level pretrain task : predict global probability
+        #TODO
+
+        #graph-level pretrain task : predict truth table
+        hop_hf = []
+        for i in range(g.all_hop_po.shape[0]):
+            pi_idx = g.all_hop_pi[i][torch.argwhere(g.all_hop_pi_stats[i]!=-1)].squeeze(-1)
+            hop_hf.append( self.hf_pool(torch.cat([hf[pi_idx],hf[g.all_hop_po[i]]], dim=0)) )
+
+        hop_hf = torch.stack(hop_hf)
+        logits = self.cls_head(hop_hf)
         
-        # Pooling 
-        hop_hs = None
-        # hop_hs = torch.zeros(len(g.gate), self.args.token_emb).to(self.args.device)
-        # hop_hf = torch.zeros(len(g.gate), self.args.token_emb).to(self.args.device)
-        hop_hf = {}
-        logits = {}
-        for idx in subgraph.keys():
-            # hop_hs[idx] = self.hs_pool(torch.cat([tf_hs[subgraph[idx]['pos'].long()], tf_hs[subgraph[idx]['pis'].long()]], dim=0))
-            # hop_hf[idx] = self.hf_pool(torch.cat([tf_hf[subgraph[idx]['pos'].long()], tf_hf[subgraph[idx]['pis'].long()]], dim=0))
 
-
-            #transformer pooling
-            hop_hf[idx] = self.hf_pool(torch.cat([hf_dict[idx]['pi_emb'],hf_dict[idx]['po_emb']], dim=0))
-
-            #average pooling
-            # hop_hf[idx] = torch.mean(torch.cat([hf_dict[idx]['pi_emb'],hf_dict[idx]['po_emb']], dim=0))
-            
-            logits[idx] = self.cls_head(hop_hf[idx])
         
         return logits
     

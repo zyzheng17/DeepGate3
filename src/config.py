@@ -22,7 +22,7 @@ def get_parse_args():
     parser.add_argument('--dropout', default=0.1, type=float)
     
     # Transformer 
-    parser.add_argument('--tf_arch', default='baseline', type=str)
+    parser.add_argument('--tf_arch', default='plain', type=str)
     parser.add_argument('--TF_depth', default=4, type=int)
     parser.add_argument('--token_emb', default=128, type=int)
     parser.add_argument('--tf_emb_size', default=128, type=int)
@@ -41,7 +41,7 @@ def get_parse_args():
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--epoch', default=100, type=int)
     parser.add_argument('--stage2_steps', default=50, type=int)
-    parser.add_argument('--lr', default=1e-3, type=float)
+    parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--loss', default='l2', type=str)
     
     # Loss weight
