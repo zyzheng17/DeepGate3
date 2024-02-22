@@ -14,7 +14,7 @@ import os.path as osp
 sys.path.append('/research/d1/gds/zyzheng23/projects/deepgate3/src')
 from utils.dataset_utils import parse_pyg_dg3
 
-from utils.circuit_utils import complete_simulation, prepare_dg2_labels
+from utils.circuit_utils import complete_simulation, prepare_dg2_labels, prepare_dg2_labels_cpp
 
 class OrderedData(Data):
     def __init__(self): 
@@ -39,10 +39,10 @@ class OrderedData(Data):
             return 0
 
 class NpzParser():
-    def __init__(self, data_dir, circuit_path, args, random_shuffle=True, trainval_split=0.9, debug=False):
+    def __init__(self, data_dir, circuit_path, args, random_shuffle=True, trainval_split=0.9):
         # super().__init__(data_dir, circuit_path, label_path, random_shuffle, trainval_split)
         self.data_dir = data_dir
-        dataset = self.inmemory_dataset(data_dir, circuit_path, args, debug=debug)
+        dataset = self.inmemory_dataset(data_dir, circuit_path, args, debug=args.debug)
         if random_shuffle:
             perm = torch.randperm(len(dataset))
             dataset = dataset[perm]
@@ -97,7 +97,7 @@ class NpzParser():
                 start_time = time.time()
                 print('Parse: {}, {:} / {:} = {:.2f}%, ETA: {:.2f}s, Curr Size: {:}'.format(
                     cir_name, cir_idx, len(circuits), cir_idx / len(circuits) * 100, 
-                    tot_time * len(circuits) / (cir_idx + 1), 
+                    tot_time * (len(circuits) - cir_idx), 
                     len(data_list)
                 ))
 
@@ -124,7 +124,7 @@ class NpzParser():
                 graph.backward_level = backward_level
                 
                 # DeepGate2 (node-level) labels
-                prob, tt_pair_index, tt_sim = prepare_dg2_labels(graph)
+                prob, tt_pair_index, tt_sim = prepare_dg2_labels_cpp(graph, 15000)
                 if len(tt_pair_index) == 0:
                     tt_pair_index = torch.zeros((2, 0), dtype=torch.long)
                 else:
@@ -199,7 +199,7 @@ class NpzParser():
                 graph.all_no_hops = torch.tensor(all_no_hops, dtype=torch.long)
                     
                 data_list.append(graph)
-                tot_time += time.time() - start_time
+                tot_time = time.time() - start_time
                 
                 if self.debug and cir_idx > 20:
                     break

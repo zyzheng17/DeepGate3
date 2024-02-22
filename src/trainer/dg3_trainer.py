@@ -301,6 +301,44 @@ class Trainer():
             label_tt = label_tt.to(self.device)
             l_ftt += self.bce(pred_prob, label_tt.float())
             hamming_dist += torch.mean(torch.abs(pred_tt.float()-label_tt.float()))
+            print(label_tt)
+            
+        l_ftt /= len(sample_list)
+        hamming_dist /= len(sample_list)
+
+        loss_status = {
+            'prob': 0,
+            'tt_sim': 0,
+            'tt_cls': l_ftt,
+            'g_sim': 0,
+        }
+        
+        return loss_status,hamming_dist
+
+
+    def run_batch_baseline(self, batch):
+        # Get all subgraph (k-hops)
+
+        subgraph = get_random_hop(batch, self.args.k_hop, hop_per_circuit=self.hop_per_circuit)
+        # Get embeddings: hs/hf node-level, hop_hs/hop_hf graph-level
+        logits = self.model(batch, subgraph)
+        
+        # Functional Tasks (Graph mask prediction)
+        l_ftt = 0
+        hamming_dist = 0
+        tt_list, no_pi_list, sample_list = sample_functional_tt(subgraph, 100)
+        for graph_k, idx in enumerate(sample_list):
+            if no_pi_list[graph_k] > 6:
+                continue
+            pred_prob = nn.Sigmoid()(logits[idx]).to(self.device)
+            pred_tt = torch.where(pred_prob>0.5,1,0)
+            label_tt = torch.tensor(tt_list[graph_k])
+            while len(label_tt) < 64:
+                label_tt = torch.cat([label_tt, label_tt])
+            pred_tt = pred_tt.to(self.device)
+            label_tt = label_tt.to(self.device)
+            l_ftt += self.bce(pred_prob, label_tt.float())
+            hamming_dist += torch.mean(torch.abs(pred_tt.float()-label_tt.float()))
         l_ftt /= len(sample_list)
         hamming_dist /= len(sample_list)
 
@@ -327,13 +365,13 @@ class Trainer():
                 num_replicas=self.world_size,
                 rank=self.rank
             )
-            train_dataset = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=False, drop_last=True,
+            train_dataset = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True,
                                     num_workers=self.num_workers, sampler=train_sampler)
-            val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, drop_last=True,
+            val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True,
                                      num_workers=self.num_workers, sampler=val_sampler)
         else:
-            train_dataset = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=False, drop_last=True, num_workers=self.num_workers)
-            val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, drop_last=True, num_workers=self.num_workers)
+            train_dataset = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=self.num_workers)
+            val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=self.num_workers)
         
         # AverageMeter
         print(f'save model to {self.log_dir}')
@@ -354,10 +392,14 @@ class Trainer():
                     torch.cuda.empty_cache()
                 if self.local_rank == 0:
                     bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
+                hamming_list = []
                 for iter_id, batch in enumerate(dataset):
                     batch = batch.to(self.device)
+                    print(torch.mean(batch.all_tt.float()))
+                    continue
                     # loss_dict = self.run_batch(batch)
                     loss_dict,hamming_dist = self.run_batch_mask(batch)
+                    hamming_list.append(hamming_dist)
                     time_stamp = time.time()
                     loss = (loss_dict['prob'] * self.args.w_prob + \
                             loss_dict['tt_sim'] * self.args.w_tt_sim + \
@@ -384,8 +426,9 @@ class Trainer():
                                 output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
                         output_log += ' | hamming_dist: {:.4f}'.format(hamming_dist)
                         print(output_log)
+                print(f'overall hamming distance:{torch.mean(torch.tensor(hamming_list))}')
                 
-                del dataset
+                # del dataset
             
             # Learning rate decay
             self.model_epoch += 1
@@ -396,6 +439,6 @@ class Trainer():
                 for param_group in self.optimizer.param_groups:
                     param_group['lr'] = self.lr
                     
-        del train_dataset
-        del val_dataset
+        # del train_dataset
+        # del val_dataset
         
