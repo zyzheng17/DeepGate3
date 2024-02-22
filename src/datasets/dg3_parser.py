@@ -201,7 +201,7 @@ class NpzParser():
                 data_list.append(graph)
                 tot_time += time.time() - start_time
                 
-                if self.debug and cir_idx > 10:
+                if self.debug and cir_idx > 20:
                     break
 
             data, slices = self.collate(data_list)

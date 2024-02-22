@@ -98,7 +98,7 @@ def random_simulation(g, patterns=10000):
     return prob, full_states, level_list, fanin_list
 
 def prepare_dg2_labels(graph):
-    prob, full_states, level_list, fanin_list = random_simulation(graph, 1500)
+    prob, full_states, level_list, fanin_list = random_simulation(graph, 10)
     # PI Cover
     pi_cover = [[] for _ in range(len(prob))]
     for level in range(len(level_list)):
