@@ -28,7 +28,8 @@ if __name__ == '__main__':
         
     # Dataset
     # parser = NpzParser(args.data_dir, args.circuit_path, debug=args.debug, random_shuffle=False)
-    parser = NpzParser(args.data_dir, args.circuit_path, args, debug=args.debug, random_shuffle=True)
+    # parser = NpzParser(args.data_dir, args.circuit_path, args, debug=args.debug, random_shuffle=True)
+    parser = NpzParser(args.data_dir, args.circuit_path, args, random_shuffle=True)
     train_dataset, val_dataset = parser.get_dataset()
     
     # Create Model 

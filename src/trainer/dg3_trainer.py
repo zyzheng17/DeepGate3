@@ -365,7 +365,7 @@ class Trainer():
         print('[INFO] Start training, lr = {:.4f}'.format(self.optimizer.param_groups[0]['lr']))
         for epoch in range(num_epoch): 
             for phase in ['train', 'val']:
-            # for phase in ['train']:
+            # for phase in ['val']:
                 if phase == 'train':
                     dataset = train_dataset
                     self.model.train()
@@ -382,8 +382,8 @@ class Trainer():
 
                 for iter_id, batch in enumerate(dataset):
                     batch = batch.to(self.device)
-                    print(torch.mean(batch.all_tt.float()))
-                    continue
+                    # print(torch.mean(batch.all_tt.float()))
+                    # continue
                     # loss_dict = self.run_batch(batch)
                     loss_dict,hamming_dist = self.run_batch_mask(batch)
                     hamming_list.append(hamming_dist)
