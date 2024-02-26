@@ -125,6 +125,7 @@ class NpzParser():
                 
                 # DeepGate2 (node-level) labels
                 prob, tt_pair_index, tt_sim = prepare_dg2_labels_cpp(graph, 15000)
+                assert max(prob).item() <= 1.0 and min(prob).item() >= 0.0
                 if len(tt_pair_index) == 0:
                     tt_pair_index = torch.zeros((2, 0), dtype=torch.long)
                 else:
@@ -201,7 +202,7 @@ class NpzParser():
                 data_list.append(graph)
                 tot_time = time.time() - start_time
                 
-                if self.debug and cir_idx > 20:
+                if self.debug and cir_idx > 100:
                     break
 
             data, slices = self.collate(data_list)

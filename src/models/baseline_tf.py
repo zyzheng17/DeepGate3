@@ -49,13 +49,17 @@ class Baseline_Transformer(nn.Sequential):
             batch_idx = g.batch[k]
             mask_node_states = hf.clone()
             # mask_node_states[hop_nodes_idx] = self.mask_token
-            mask_hop_states = mask_node_states[torch.argwhere(g.batch==batch_idx)].squeeze(1)
+            # mask_hop_states = mask_node_states[torch.argwhere(g.batch==batch_idx)].squeeze(1)
+            mask_hop_states = mask_node_states[g.batch==batch_idx].squeeze(1)
             mask_hop_states = torch.cat([mask_hop_states, \
                                           torch.zeros([self.max_length - mask_hop_states.shape[0],mask_hop_states.shape[1]]).to(mask_hop_states.device)],dim=0)
             mask_hop_states_list.append(mask_hop_states.unsqueeze(0))
             
-            current_pi_idx = subgraph[k]['pis']-len(torch.argwhere(g.batch<batch_idx))
-            current_po_idx = subgraph[k]['pos']-len(torch.argwhere(g.batch<batch_idx))
+            # current_pi_idx = subgraph[k]['pis']-len(torch.argwhere(g.batch<batch_idx))
+            # current_po_idx = subgraph[k]['pos']-len(torch.argwhere(g.batch<batch_idx))
+            current_pi_idx = subgraph[k]['pis']-len(g.batch<batch_idx)
+            current_po_idx = subgraph[k]['pos']-len(g.batch<batch_idx)
+            
             pis.append(current_pi_idx)
             pos.append(current_po_idx)
 

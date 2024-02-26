@@ -1,5 +1,6 @@
 import random 
 import torch
+import os 
 from utils.utils import run_command
 
 def logic(gate_type, signals):
@@ -135,7 +136,7 @@ def prepare_dg2_labels(graph, no_patterns=10000):
     tt_sim = torch.tensor(tt_sim_list)
     return prob, tt_index, tt_sim
 
-def prepare_dg2_labels_cpp(g, no_patterns=10000, 
+def prepare_dg2_labels_cpp(g, no_patterns=15000, 
                            simulator='./src/simulator/simulator', 
                            graph_filepath='./tmp/graph.txt', 
                            res_filepath='./tmp/res.txt'):
@@ -193,7 +194,7 @@ def prepare_dg2_labels_cpp(g, no_patterns=10000,
     lines = f.readlines()
     f.close()
     prob = [-1] * no_nodes
-    for line in lines:
+    for line in lines[:no_nodes]:
         arr = line.replace('\n', '').split(' ')
         prob[int(arr[0])] = float(arr[1])
     for tt_pair_idx, pair in enumerate(sample_idx):
@@ -215,6 +216,10 @@ def prepare_dg2_labels_cpp(g, no_patterns=10000,
     tt_index = torch.tensor(tt_index)
     tt_sim = torch.tensor(tt_sim)
     prob = torch.tensor(prob)
+    
+    # Remove 
+    os.remove(graph_filepath)
+    os.remove(res_filepath)
     
     return prob, tt_index, tt_sim
     
