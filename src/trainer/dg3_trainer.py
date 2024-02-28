@@ -279,25 +279,29 @@ class Trainer():
         return loss_status
 
     def run_batch_mask(self, batch):
-
-        # Get embeddings: hs/hf node-level, hop_hs/hop_hf graph-level
-        logits = self.model(batch)
+        hs, hf, pred_prob, pred_hop_tt = self.model(batch)
         
-        # Functional Tasks (Graph mask prediction)
-        pred_prob = nn.Sigmoid()(logits).to(self.device)
-        pred_tt = torch.where(pred_prob > 0.5, 1, 0)
-
-        l_ftt = self.bce(pred_prob, batch.all_tt.float())
+        # DG2 Tasks
+        l_fprob = self.l1_loss(pred_prob, batch.prob.unsqueeze(1).to(self.device))
+        pred_tt_sim = torch.cosine_similarity(hf[batch.tt_pair_index[0]], hf[batch.tt_pair_index[1]], eps=1e-8)
+        pred_tt_sim = normalize_1(pred_tt_sim).float().to(self.device)
+        tt_sim = normalize_1(batch.tt_sim).float().to(self.device)
+        l_fttsim = self.l1_loss(pred_tt_sim, tt_sim)
+        
+        # Graph mask prediction 
+        pred_hop_tt_prob = nn.Sigmoid()(pred_hop_tt).to(self.device)
+        pred_tt = torch.where(pred_hop_tt_prob > 0.5, 1, 0)
+        l_ftt = self.bce(pred_hop_tt_prob, batch.all_tt.float())
         hamming_dist = torch.mean(torch.abs(pred_tt.float()-batch.all_tt.float())).cpu()
-
+        
         loss_status = {
-            'prob': 0,
-            'tt_sim': 0,
+            'prob': l_fprob,
+            'tt_sim': l_fttsim,
             'tt_cls': l_ftt,
             'g_sim': 0,
         }
         
-        return loss_status,hamming_dist
+        return loss_status, hamming_dist
 
 
     def run_batch_baseline(self, batch):

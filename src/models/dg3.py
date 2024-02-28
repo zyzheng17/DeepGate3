@@ -48,13 +48,9 @@ class DeepGate3(nn.Module):
             self.transformer = _transformer_factory[args.tf_arch](args)
         
         # Prediction 
-        self.mask_pred_hs = MLP(
-            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=self.args.token_emb, 
-            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer=self.args.act_layer
-        )
-        self.mask_pred_hf = MLP(
-            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=self.args.token_emb, 
-            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer=self.args.act_layer
+        self.readout_prob = MLP(
+            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
+            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
         )
 
         #pooling layer
@@ -89,15 +85,11 @@ class DeepGate3(nn.Module):
             hf = self.transformer(g, hs, hf)
 
         #gate-level pretrain task : predict global probability
-        #TODO
+        prob = self.readout_prob(hf)
 
         #graph-level pretrain task : predict truth table
         hop_hf = []
         masks = []
-        # for i in range(g.all_hop_po.shape[0]):
-        #     pi_idx = g.all_hop_pi[i][torch.argwhere(g.all_hop_pi_stats[i]!=-1)].squeeze(-1)
-        #     hop_hf.append( self.hf_pool(torch.cat([hf[pi_idx],hf[g.all_hop_po[i]]], dim=0)) )
-
 
         for i in range(g.all_hop_po.shape[0]):
             # -1 Padding, 0 Logic-0, 1 Logic-1, 2 variable
@@ -141,9 +133,9 @@ class DeepGate3(nn.Module):
         
         hop_hf = self.tf_encoder(hop_hf,src_key_padding_mask = masks.float())
         hop_hf = hop_hf.permute(1,0,2)[:,0]
-        logits = self.cls_head(hop_hf)
+        hop_tt = self.cls_head(hop_hf)
         
-        return logits
+        return hs, hf, prob, hop_tt
     
     def pred_tt(self, graph_emb, no_pi):
         tt = []
