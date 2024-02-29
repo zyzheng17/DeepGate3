@@ -6,6 +6,7 @@ import copy
 import random
 import time
 from torch_geometric.data import Data, InMemoryDataset
+import torch.nn.functional as F
 import sys
 
 from deepgate.utils.data_utils import read_npz_file
@@ -23,7 +24,7 @@ class OrderedData(Data):
     def __inc__(self, key, value, *args, **kwargs):
         if 'index' in key or 'face' in key:
             return self.num_nodes
-        elif key == 'all_hop_pi' or key == 'all_hop_po': 
+        elif key == 'all_hop_pi' or key == 'all_hop_po' or key == 'all_hop_nodes': 
             return self.num_nodes
         else:
             return 0
@@ -34,6 +35,8 @@ class OrderedData(Data):
         elif key == "edge_index" or key == 'tt_pair_index' or key == 'rc_pair_index':
             return 1
         elif key == 'all_hop_pi' or key == 'all_hop_po' or key == 'all_hop_pi_stats' or key == 'all_tt' or key == 'all_no_hops':
+            return 0
+        elif key == 'all_hop_nodes' or key == 'all_hop_nodes_stats':
             return 0
         else:
             return 0
@@ -141,6 +144,11 @@ class NpzParser():
                 all_hop_pi = torch.zeros((0, 2**(self.args.k_hop-1)), dtype=torch.long)
                 all_hop_pi_stats = torch.zeros((0, 2**(self.args.k_hop-1)), dtype=torch.long)
                 all_hop_po = torch.zeros((0, 1), dtype=torch.long)
+                max_hop_nodes_cnt = 0
+                for k in range(self.args.k_hop+1):
+                    max_hop_nodes_cnt += 2**k
+                all_hop_nodes = torch.zeros((0, max_hop_nodes_cnt), dtype=torch.long)
+                all_hop_nodes_stats = torch.zeros((0, max_hop_nodes_cnt), dtype=torch.long)
                 all_tt = []
                 all_no_hops = []
                 for idx in rand_idx_list:
@@ -190,14 +198,22 @@ class NpzParser():
                     all_hop_pi = torch.cat([all_hop_pi, hop_pis.view(1, -1)], dim=0)
                     all_hop_po = torch.cat([all_hop_po, hop_pos.view(1, -1)], dim=0)
                     all_hop_pi_stats = torch.cat([all_hop_pi_stats, torch.tensor(hop_pi_stats).view(1, -1)], dim=0)
+                    assert len(hop_nodes) <= max_hop_nodes_cnt
+                    hop_nodes_stats = torch.ones(len(hop_nodes), dtype=torch.long)
+                    hop_nodes = F.pad(hop_nodes, (0, max_hop_nodes_cnt - len(hop_nodes)), value=-1)
+                    hop_nodes_stats = F.pad(hop_nodes_stats, (0, max_hop_nodes_cnt - len(hop_nodes_stats)), value=0)
+                    all_hop_nodes = torch.cat([all_hop_nodes, hop_nodes.view(1, -1)], dim=0)
+                    all_hop_nodes_stats = torch.cat([all_hop_nodes_stats, hop_nodes_stats.view(1, -1)], dim=0)
                     all_tt.append(hop_tt)
                     all_no_hops.append(no_hops)
 
-                graph.all_hop_pi = all_hop_pi
-                graph.all_hop_po = all_hop_po
-                graph.all_hop_pi_stats = all_hop_pi_stats
-                graph.all_tt = torch.tensor(all_tt, dtype=torch.long)
-                graph.all_no_hops = torch.tensor(all_no_hops, dtype=torch.long)
+                graph.hop_pi = all_hop_pi
+                graph.hop_po = all_hop_po
+                graph.hop_pi_stats = all_hop_pi_stats
+                graph.hop_nodes = all_hop_nodes
+                graph.hop_nodes_stats = all_hop_nodes_stats
+                graph.hop_tt = torch.tensor(all_tt, dtype=torch.long)
+                graph.no_hops = torch.tensor(all_no_hops, dtype=torch.long)
                     
                 data_list.append(graph)
                 tot_time = time.time() - start_time

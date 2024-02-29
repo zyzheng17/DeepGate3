@@ -291,8 +291,8 @@ class Trainer():
         # Graph mask prediction 
         pred_hop_tt_prob = nn.Sigmoid()(pred_hop_tt).to(self.device)
         pred_tt = torch.where(pred_hop_tt_prob > 0.5, 1, 0)
-        l_ftt = self.bce(pred_hop_tt_prob, batch.all_tt.float())
-        hamming_dist = torch.mean(torch.abs(pred_tt.float()-batch.all_tt.float())).cpu()
+        l_ftt = self.bce(pred_hop_tt_prob, batch.hop_tt.float())
+        hamming_dist = torch.mean(torch.abs(pred_tt.float()-batch.hop_tt.float())).cpu()
         
         loss_status = {
             'prob': l_fprob,
@@ -382,11 +382,11 @@ class Trainer():
                     bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
                 hamming_list = []
                 # for iter_id, batch in enumerate(dataset):
-                    # print(torch.mean(batch.all_tt.float()))
+                    # print(torch.mean(batch.hop_tt.float()))
 
                 for iter_id, batch in enumerate(dataset):
                     batch = batch.to(self.device)
-                    # print(torch.mean(batch.all_tt.float()))
+                    # print(torch.mean(batch.hop_tt.float()))
                     # continue
                     # loss_dict = self.run_batch(batch)
                     loss_dict,hamming_dist = self.run_batch_mask(batch)
