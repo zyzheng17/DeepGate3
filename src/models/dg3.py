@@ -83,7 +83,8 @@ class DeepGate3(nn.Module):
         # Refine-Transformer 
         if self.tf_arch != 'baseline':
             #non-residual
-            hf = self.transformer(g, hs, hf)
+            # hf = self.transformer(g, hs, hf)
+
             #with-residual
             hf = hf + self.transformer(g, hs, hf)
 
