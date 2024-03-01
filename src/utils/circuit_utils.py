@@ -136,6 +136,73 @@ def prepare_dg2_labels(graph, no_patterns=10000):
     tt_sim = torch.tensor(tt_sim_list)
     return prob, tt_index, tt_sim
 
+def get_fanin_fanout_cone(g, max_no_nodes=512): 
+    # Parse graph 
+    PI_index = g['forward_index'][(g['forward_level'] == 0) & (g['backward_level'] != 0)]
+    PO_index = g['forward_index'][(g['forward_level'] != 0) & (g['backward_level'] == 0)]
+    no_nodes = len(g['forward_index'])
+    forward_level_list = [[] for I in range(g['forward_level'].max()+1)]
+    backward_level_list = [[] for I in range(g['backward_level'].max()+1)]
+    fanin_list = [[] for _ in range(no_nodes)]
+    fanout_list = [[] for _ in range(no_nodes)]
+    for edge in g['edge_index'].t():
+        fanin_list[edge[1].item()].append(edge[0].item())
+        fanout_list[edge[0].item()].append(edge[1].item())
+    for k, idx in enumerate(g['forward_index']):
+        forward_level_list[g['forward_level'][k].item()].append(k)
+        backward_level_list[g['backward_level'][k].item()].append(k)
+    
+    # PI Cover 
+    pi_cover = [[] for _ in range(no_nodes)]
+    for level in range(len(forward_level_list)):
+        for idx in forward_level_list[level]:
+            if level == 0:
+                pi_cover[idx].append(idx)
+            tmp_pi_cover = []
+            for pre_k in fanin_list[idx]:
+                tmp_pi_cover += pi_cover[pre_k]
+            tmp_pi_cover = list(set(tmp_pi_cover))
+            pi_cover[idx] += tmp_pi_cover
+    
+    # PO Cover
+    po_cover = [[] for _ in range(no_nodes)]
+    for level in range(len(backward_level_list)):
+        for idx in backward_level_list[level]:
+            if level == 0:
+                po_cover[idx].append(idx)
+            tmp_po_cover = []
+            for post_k in fanout_list[idx]:
+                tmp_po_cover += po_cover[post_k]
+            tmp_po_cover = list(set(tmp_po_cover))
+            po_cover[idx] += tmp_po_cover
+    
+    # fanin and fanout cone 
+    fanin_fanout_cones = torch.zeros((max_no_nodes, max_no_nodes), dtype=torch.long)
+    for i in range(no_nodes):
+        for j in range(no_nodes):
+            if i == j:
+                continue
+            if len(pi_cover[j]) <= len(pi_cover[i]) and g['forward_level'][j] < g['forward_level'][i]:
+                j_in_i_fanin = True
+                for pi in pi_cover[j]:
+                    if pi not in pi_cover[i]:
+                        j_in_i_fanin = False
+                        break
+                if j_in_i_fanin:
+                    assert fanin_fanout_cones[i][j] == 0
+                    fanin_fanout_cones[i][j] = 1
+            if len(po_cover[j]) <= len(po_cover[i]) and g['forward_level'][j] > g['forward_level'][i]:
+                j_in_i_fanout = True
+                for po in po_cover[j]:
+                    if po not in po_cover[i]:
+                        j_in_i_fanout = False
+                        break
+                if j_in_i_fanout:
+                    assert fanin_fanout_cones[i][j] == 0
+                    fanin_fanout_cones[i][j] = 2
+    
+    return fanin_fanout_cones
+
 def prepare_dg2_labels_cpp(g, no_patterns=15000, 
                            simulator='./src/simulator/simulator', 
                            graph_filepath='./tmp/graph.txt', 

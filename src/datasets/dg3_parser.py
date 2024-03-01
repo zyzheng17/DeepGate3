@@ -15,7 +15,7 @@ import os.path as osp
 sys.path.append('/research/d1/gds/zyzheng23/projects/deepgate3/src')
 from utils.dataset_utils import parse_pyg_dg3
 
-from utils.circuit_utils import complete_simulation, prepare_dg2_labels, prepare_dg2_labels_cpp
+from utils.circuit_utils import complete_simulation, prepare_dg2_labels, prepare_dg2_labels_cpp, get_fanin_fanout_cone
 
 class OrderedData(Data):
     def __init__(self): 
@@ -125,6 +125,9 @@ class NpzParser():
                 graph.backward_index = backward_index
                 graph.forward_level = forward_level
                 graph.backward_level = backward_level
+                graph.no_gates = torch.tensor(x_data.shape[0], dtype=torch.long)
+                fanin_fanout_cone = get_fanin_fanout_cone(graph)
+                graph.fanin_fanout_cone = fanin_fanout_cone
                 
                 # DeepGate2 (node-level) labels
                 prob, tt_pair_index, tt_sim = prepare_dg2_labels_cpp(graph, 15000)
