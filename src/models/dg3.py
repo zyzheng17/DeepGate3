@@ -82,7 +82,10 @@ class DeepGate3(nn.Module):
         hs = hs.detach()
         # Refine-Transformer 
         if self.tf_arch != 'baseline':
+            #non-residual
             hf = self.transformer(g, hs, hf)
+            #with-residual
+            hf = hf + self.transformer(g, hs, hf)
 
         #gate-level pretrain task : predict global probability
         prob = self.readout_prob(hf)
