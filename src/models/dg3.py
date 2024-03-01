@@ -57,10 +57,10 @@ class DeepGate3(nn.Module):
         pool_layer = nn.TransformerEncoderLayer(d_model=self.hidden, nhead=4)
         self.tf_encoder = nn.TransformerEncoder(pool_layer, num_layers=3)
 
-        self.hs_pool = tf_Pooling(args)
-        self.hf_pool = tf_Pooling(args)
-        self.tt_pred = [nn.Sequential(nn.Linear(self.args.token_emb, 1), nn.Sigmoid()) for _ in range(self.max_tt_len)]
-        self.prob_pred = nn.Sequential(nn.Linear(self.args.token_emb, self.args.token_emb), nn.ReLU(), nn.Linear(self.args.token_emb, 1), nn.ReLU())
+        # self.hs_pool = tf_Pooling(args)
+        # self.hf_pool = tf_Pooling(args)
+        # self.tt_pred = [nn.Sequential(nn.Linear(self.args.token_emb, 1), nn.Sigmoid()) for _ in range(self.max_tt_len)]
+        # self.prob_pred = nn.Sequential(nn.Linear(self.args.token_emb, self.args.token_emb), nn.ReLU(), nn.Linear(self.args.token_emb, 1), nn.ReLU())
         
         self.cls_head = nn.Sequential(nn.Linear(self.hidden, self.hidden*4),
                         nn.ReLU(),
