@@ -36,8 +36,11 @@ class Plain_Transformer(nn.Sequential):
         self.mask_token = nn.Parameter(torch.randn([hidden,]))
         #TODO: the max_length should be the max number of gate in a circuit
         self.max_length = 512
-        self.transformer_blocks = nn.ModuleList(
-            [TransformerBlock(hidden, attn_heads, hidden * 4, dropout) for _ in range(n_layers)])
+        TransformerEncoderLayer = nn.TransformerEncoderLayer(d_model=self.hidden, nhead=attn_heads, dropout=dropout)
+        self.transformer_blocks = nn.TransformerEncoder(TransformerEncoderLayer, num_layers=n_layers)
+
+        # self.transformer_blocks = nn.ModuleList(
+        #     [TransformerBlock(hidden, attn_heads, hidden * 4, dropout) for _ in range(n_layers)])
         self.cls_head = nn.Sequential(nn.Linear(hidden*2, hidden*4),
                         nn.ReLU(),
                         nn.LayerNorm(hidden*4),
@@ -52,9 +55,10 @@ class Plain_Transformer(nn.Sequential):
         hs = hs.detach()
         bs = g.batch.max().item() + 1
         #mask po function embedding
-        hf[g.hop_po.squeeze()] = self.mask_token
+        # hf[g.all_hop_po.squeeze()] = self.mask_token
         
         mask_hop_states = torch.zeros([bs,self.max_length,self.hidden]).to(hf.device)
+        mask = torch.ones([bs,self.max_length]).to(hf.device)
         for i in range(bs):
             # batch_idx = torch.argwhere(g.batch==i).squeeze(-1)
             # # add hs as positional embedding
@@ -62,10 +66,14 @@ class Plain_Transformer(nn.Sequential):
             #                                 torch.zeros([self.max_length - hf[batch_idx].shape[0],hf[batch_idx].shape[1]]).to(hf.device)],dim=0)
             mask_hop_states[i] = torch.cat([hf[g.batch==i] + hs[g.batch==i], \
                                             torch.zeros([self.max_length - hf[g.batch==i].shape[0],hf[g.batch==i].shape[1]]).to(hf.device)],dim=0)
+            mask[i][:hf[g.batch==i].shape[0]] = 0
 
-        mask = (mask_hop_states[:,:,0] != 0).unsqueeze(1).repeat(1, mask_hop_states.shape[1], 1).unsqueeze(1) 
-        for transformer in self.transformer_blocks:
-            mask_hop_states = transformer.forward(mask_hop_states, mask)
+        # mask = (mask_hop_states[:,:,0] != 0).unsqueeze(1).repeat(1, mask_hop_states.shape[1], 1).unsqueeze(1) 
+        # for transformer in self.transformer_blocks:
+        #     mask_hop_states = transformer.forward(mask_hop_states, mask)
+        mask_hop_states = mask_hop_states.permute(1,0,2)
+        mask_hop_states = self.transformer_blocks(mask_hop_states, src_key_padding_mask=mask)
+        mask_hop_states = mask_hop_states.permute(1,0,2)
         for i in range(bs):
             # batch_idx = torch.argwhere(g.batch==i).squeeze(-1)
             batch_idx = g.forward_index[g.batch==i]

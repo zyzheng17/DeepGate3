@@ -91,11 +91,11 @@ class DeepGate3(nn.Module):
         hop_hf = []
         masks = []
 
-        for i in range(g.hop_po.shape[0]):
+        for i in range(g.all_hop_po.shape[0]):
             # -1 Padding, 0 Logic-0, 1 Logic-1, 2 variable
             # pi_idx = g.hop_pi[i][torch.argwhere(g.hop_pi_stats[i]!=-1)].squeeze(-1)
-            pi_idx = g.hop_pi[i][g.hop_pi_stats[i]!=-1].squeeze(-1)
-            pi_hop_stats = g.hop_pi_stats[i]
+            pi_idx = g.all_hop_pi[i][g.all_hop_pi_stats[i]!=-1].squeeze(-1)
+            pi_hop_stats = g.all_hop_pi_stats[i]
             pi_emb = hf[pi_idx]
             pi_emb = []
             for j in range(8):
@@ -107,7 +107,7 @@ class DeepGate3(nn.Module):
                 elif pi_hop_stats[j] == 1:
                     pi_emb.append(self.one_token)
                 elif pi_hop_stats[j] == 2:
-                    pi_emb.append(hf[g.hop_pi[i][j]])
+                    pi_emb.append(hf[g.all_hop_pi[i][j]])
             # add dont care token
             while len(pi_emb) < 6:
                 pi_emb.insert(0,self.dc_token)
@@ -118,7 +118,7 @@ class DeepGate3(nn.Module):
                 mask.append(0)
 
             pi_emb = torch.stack(pi_emb) # 8 128
-            po_emb = hf[g.hop_po[i]] # 1 128
+            po_emb = hf[g.all_hop_po[i]] # 1 128
             hop_hf.append(torch.cat([self.cls_token.unsqueeze(0),pi_emb,po_emb], dim=0)) 
             mask.insert(0,1)
             mask.append(1)
