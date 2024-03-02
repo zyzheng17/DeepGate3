@@ -286,7 +286,7 @@ class Trainer():
         pred_tt_sim = torch.cosine_similarity(hf[batch.tt_pair_index[0]], hf[batch.tt_pair_index[1]], eps=1e-8)
         pred_tt_sim = normalize_1(pred_tt_sim).float().to(self.device)
         tt_sim = normalize_1(batch.tt_sim).float().to(self.device)
-        l_fttsim = self.l1_loss(pred_tt_sim, tt_sim)
+        # l_fttsim = self.l1_loss(pred_tt_sim, tt_sim)
         
         # Graph mask prediction 
         pred_hop_tt_prob = nn.Sigmoid()(pred_hop_tt).to(self.device)
@@ -296,7 +296,7 @@ class Trainer():
         
         loss_status = {
             'prob': l_fprob,
-            'tt_sim': l_fttsim,
+            'tt_sim': 0,
             'tt_cls': l_ftt,
             'g_sim': 0,
         }
