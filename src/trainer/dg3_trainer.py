@@ -382,7 +382,7 @@ class Trainer():
                     bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
                 hamming_list = []
                 lprob = []
-                lttsim=[]
+                # lttsim=[]
                 # for iter_id, batch in enumerate(dataset):
                     # print(torch.mean(batch.hop_tt.float()))
 
@@ -394,7 +394,7 @@ class Trainer():
                     loss_dict,hamming_dist = self.run_batch_mask(batch)
                     hamming_list.append(hamming_dist)
                     lprob.append(loss_dict['prob'].item())
-                    lttsim.append(loss_dict['tt_sim'].item())
+                    # lttsim.append(loss_dict['tt_sim'].item())
                     time_stamp = time.time()
                     loss = (loss_dict['prob'] * self.args.w_prob + \
                             loss_dict['tt_sim'] * self.args.w_tt_sim + \
@@ -423,7 +423,7 @@ class Trainer():
                         print(output_log)
                 print(f'overall hamming distance:{torch.mean(torch.tensor(hamming_list))}')
                 print(f'overall probability loss:{torch.mean(torch.tensor(lprob))}')
-                print(f'overall tt similarity loss:{torch.mean(torch.tensor(lttsim))}')
+                # print(f'overall tt similarity loss:{torch.mean(torch.tensor(lttsim))}')
                 # del dataset
             
             # Learning rate decay

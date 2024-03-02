@@ -1,4 +1,4 @@
-mkdir tmp 
+# mkdir tmp 
 
 # Simulator 
 cd src/simulator
