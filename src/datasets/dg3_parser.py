@@ -15,7 +15,7 @@ import os.path as osp
 sys.path.append('/research/d1/gds/zyzheng23/projects/deepgate3/src')
 from utils.dataset_utils import parse_pyg_dg3
 
-from utils.circuit_utils import complete_simulation, prepare_dg2_labels, prepare_dg2_labels_cpp, get_fanin_fanout_cone, get_sample_paths
+from utils.circuit_utils import complete_simulation, prepare_dg2_labels_cpp, get_fanin_fanout_cone, get_sample_paths, remove_unconnected
 
 class OrderedData(Data):
     def __init__(self): 
@@ -114,8 +114,9 @@ class NpzParser():
                 ))
 
                 x_data = circuits[cir_name]['x']
-                x_one_hot = dg.construct_node_feature(x_data, 3)
                 edge_index = circuits[cir_name]['edge_index']
+                x_data, edge_index = remove_unconnected(x_data, edge_index)
+                x_one_hot = dg.construct_node_feature(x_data, 3)
                 edge_index = torch.tensor(edge_index, dtype=torch.long)
                 
                 if not self.args.enable_large_circuit and x_data.shape[0]>512:
@@ -125,6 +126,8 @@ class NpzParser():
 
                 edge_index = edge_index.t().contiguous()
                 forward_level, forward_index, backward_level, backward_index = dg.return_order_info(edge_index, x_one_hot.size(0))
+                assert ((forward_level == 0) & (backward_level == 0)).sum() == 0
+                
                 graph = OrderedData()
                 graph.x = x_one_hot
                 graph.edge_index = edge_index

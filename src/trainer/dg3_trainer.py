@@ -387,7 +387,7 @@ class Trainer():
                     # print(torch.mean(batch.hop_tt.float()))
 
                 for iter_id, batch in enumerate(dataset):
-                    batch = batch.to(self.device)
+                    batch = batch.to(self.device)                    
                     # print(torch.mean(batch.hop_tt.float()))
                     # continue
                     # loss_dict = self.run_batch(batch)

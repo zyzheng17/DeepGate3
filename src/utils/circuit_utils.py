@@ -1,6 +1,7 @@
 import random 
 import torch
 import os 
+import numpy as np
 from utils.utils import run_command
 
 def logic(gate_type, signals):
@@ -98,6 +99,25 @@ def random_simulation(g, patterns=10000):
     prob = torch.tensor(prob)
     full_states = torch.tensor(full_states)
     return prob, full_states, level_list, fanin_list
+
+def remove_unconnected(x_data, edge_index):
+    new_x_data = []
+    new_edge_index = []
+    is_connected = [False] * len(x_data)
+    for edge in edge_index:
+        is_connected[edge[0]] = True
+        is_connected[edge[1]] = True
+    
+    new_map = {}
+    for idx, is_c in enumerate(is_connected):
+        if is_c:
+            new_map[idx] = len(new_x_data)
+            new_x_data.append(x_data[idx])
+    for edge in edge_index:
+        new_edge_index.append([new_map[edge[0]], new_map[edge[1]]])
+    
+    new_x_data = np.array(new_x_data)
+    return new_x_data, new_edge_index
 
 def prepare_dg2_labels(graph, no_patterns=10000):
     prob, full_states, level_list, fanin_list = random_simulation(graph, no_patterns)
