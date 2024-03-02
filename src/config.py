@@ -6,7 +6,7 @@ def get_parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--exp_id', default='default')
     parser.add_argument('--local_rank', default=0, type=int)
-    parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--debug', default=True , action='store_true')
     parser.add_argument('--gpus', default='1', type=str)
     
     # Dataset
