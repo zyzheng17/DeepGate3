@@ -64,7 +64,7 @@ class Plain_Transformer(nn.Sequential):
         corr_m = corr_m.unsqueeze(1).repeat(1,self.num_head,1,1).reshape(bs*self.num_head,l1,l2)
         
         #mask po function embedding
-        # hf[g.all_hop_po.squeeze()] = self.mask_token
+        # hf[g.hop_po.squeeze()] = self.mask_token
         
         mask_hop_states = torch.zeros([bs,self.max_length,self.hidden]).to(hf.device)
         padding_mask = torch.ones([bs,self.max_length]).to(hf.device)

@@ -136,6 +136,44 @@ def prepare_dg2_labels(graph, no_patterns=10000):
     tt_sim = torch.tensor(tt_sim_list)
     return prob, tt_index, tt_sim
 
+def get_sample_paths(g, no_path=1000, max_path_len=128, path_hop_k=0):
+    # Parse graph 
+    PI_index = g['forward_index'][(g['forward_level'] == 0) & (g['backward_level'] != 0)]
+    PO_index = g['forward_index'][(g['forward_level'] != 0) & (g['backward_level'] == 0)]
+    no_nodes = len(g['forward_index'])
+    level_list = [[] for I in range(g['forward_level'].max()+1)]
+    fanin_list = [[] for _ in range(no_nodes)]
+    fanout_list = [[] for _ in range(no_nodes)]
+    for edge in g['edge_index'].t():
+        fanin_list[edge[1].item()].append(edge[0].item())
+        fanout_list[edge[0].item()].append(edge[1].item())
+    for k, idx in enumerate(g['forward_index']):
+        level_list[g['forward_level'][k].item()].append(k)
+        
+    # Sample Paths
+    path_list = []
+    for _ in range(no_path):
+        path = []
+        node_idx = random.choice(PI_index).item()
+        path.append(node_idx)
+        while len(fanout_list[node_idx]) > 0 and len(path) < max_path_len:
+            node_idx = random.choice(fanout_list[node_idx])
+            # Add hop
+            q = [(node_idx, 0)]
+            while len(q) > 0:
+                hop_node_idx, hop_level = q.pop(0)
+                if hop_level > path_hop_k:
+                    continue
+                path.append(hop_node_idx)
+                for fanin in fanin_list[hop_node_idx]:
+                    q.append((fanin, hop_level+1))
+        path = list(set(path))
+        while len(path) < max_path_len:
+            path.append(-1)
+        path_list.append(path[:max_path_len])
+    
+    return path_list
+
 def get_fanin_fanout_cone(g, max_no_nodes=512): 
     # Parse graph 
     PI_index = g['forward_index'][(g['forward_level'] == 0) & (g['backward_level'] != 0)]
@@ -177,10 +215,12 @@ def get_fanin_fanout_cone(g, max_no_nodes=512):
             po_cover[idx] += tmp_po_cover
     
     # fanin and fanout cone 
-    fanin_fanout_cones = torch.zeros((max_no_nodes, max_no_nodes), dtype=torch.long)
+    fanin_fanout_cones = [[-1]*max_no_nodes for _ in range(max_no_nodes)]
+    fanin_fanout_cones = torch.tensor(fanin_fanout_cones, dtype=torch.long)
     for i in range(no_nodes):
         for j in range(no_nodes):
             if i == j:
+                fanin_fanout_cones[i][j] = 0
                 continue
             if len(pi_cover[j]) <= len(pi_cover[i]) and g['forward_level'][j] < g['forward_level'][i]:
                 j_in_i_fanin = True
@@ -189,17 +229,25 @@ def get_fanin_fanout_cone(g, max_no_nodes=512):
                         j_in_i_fanin = False
                         break
                 if j_in_i_fanin:
-                    assert fanin_fanout_cones[i][j] == 0
+                    assert fanin_fanout_cones[i][j] == -1
                     fanin_fanout_cones[i][j] = 1
-            if len(po_cover[j]) <= len(po_cover[i]) and g['forward_level'][j] > g['forward_level'][i]:
+                else:
+                    fanin_fanout_cones[i][j] = 0
+            elif len(po_cover[j]) <= len(po_cover[i]) and g['forward_level'][j] > g['forward_level'][i]:
                 j_in_i_fanout = True
                 for po in po_cover[j]:
                     if po not in po_cover[i]:
                         j_in_i_fanout = False
                         break
                 if j_in_i_fanout:
-                    assert fanin_fanout_cones[i][j] == 0
+                    assert fanin_fanout_cones[i][j] == -1
                     fanin_fanout_cones[i][j] = 2
+                else:
+                    fanin_fanout_cones[i][j] = 0
+            else:
+                fanin_fanout_cones[i][j] = 0
+    
+    assert -1 not in fanin_fanout_cones[:no_nodes, :no_nodes]
     
     return fanin_fanout_cones
 
