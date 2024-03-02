@@ -177,10 +177,12 @@ def get_fanin_fanout_cone(g, max_no_nodes=512):
             po_cover[idx] += tmp_po_cover
     
     # fanin and fanout cone 
-    fanin_fanout_cones = torch.zeros((max_no_nodes, max_no_nodes), dtype=torch.long)
+    fanin_fanout_cones = [[-1]*max_no_nodes for _ in range(max_no_nodes)]
+    fanin_fanout_cones = torch.tensor(fanin_fanout_cones, dtype=torch.long)
     for i in range(no_nodes):
         for j in range(no_nodes):
             if i == j:
+                fanin_fanout_cones[i][j] = 0
                 continue
             if len(pi_cover[j]) <= len(pi_cover[i]) and g['forward_level'][j] < g['forward_level'][i]:
                 j_in_i_fanin = True
@@ -189,8 +191,10 @@ def get_fanin_fanout_cone(g, max_no_nodes=512):
                         j_in_i_fanin = False
                         break
                 if j_in_i_fanin:
-                    assert fanin_fanout_cones[i][j] == 0
+                    assert fanin_fanout_cones[i][j] == -1
                     fanin_fanout_cones[i][j] = 1
+                else:
+                    fanin_fanout_cones[i][j] = 0
             if len(po_cover[j]) <= len(po_cover[i]) and g['forward_level'][j] > g['forward_level'][i]:
                 j_in_i_fanout = True
                 for po in po_cover[j]:
@@ -198,8 +202,14 @@ def get_fanin_fanout_cone(g, max_no_nodes=512):
                         j_in_i_fanout = False
                         break
                 if j_in_i_fanout:
-                    assert fanin_fanout_cones[i][j] == 0
+                    assert fanin_fanout_cones[i][j] == -1
                     fanin_fanout_cones[i][j] = 2
+                else:
+                    fanin_fanout_cones[i][j] = 0
+            else:
+                fanin_fanout_cones[i][j] = 0
+    
+    assert -1 not in fanin_fanout_cones[:no_nodes, :no_nodes]
     
     return fanin_fanout_cones
 
