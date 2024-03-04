@@ -295,7 +295,7 @@ class Trainer():
         hamming_dist = torch.mean(torch.abs(pred_tt.float()-batch.hop_tt.float())).cpu()
         
         loss_status = {
-            'prob': 0,
+            'prob': l_fprob,
             'tt_sim': 0,
             'tt_cls': l_ftt,
             'g_sim': 0,
@@ -393,7 +393,7 @@ class Trainer():
                     # loss_dict = self.run_batch(batch)
                     loss_dict,hamming_dist = self.run_batch_mask(batch)
                     hamming_list.append(hamming_dist)
-                    # lprob.append(loss_dict['prob'].item())
+                    lprob.append(loss_dict['prob'].item())
                     # lttsim.append(loss_dict['tt_sim'].item())
                     time_stamp = time.time()
                     loss = (loss_dict['prob'] * self.args.w_prob + \
@@ -422,7 +422,7 @@ class Trainer():
                         output_log += ' | hamming_dist: {:.4f}'.format(hamming_dist)
                         print(output_log)
                 print(f'overall hamming distance:{torch.mean(torch.tensor(hamming_list))}')
-                # print(f'overall probability loss:{torch.mean(torch.tensor(lprob))}')
+                print(f'overall probability loss:{torch.mean(torch.tensor(lprob))}')
                 # print(f'overall tt similarity loss:{torch.mean(torch.tensor(lttsim))}')
                 # del dataset
             
