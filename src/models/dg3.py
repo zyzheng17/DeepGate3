@@ -11,6 +11,7 @@ from .dg2 import DeepGate2
 
 from .plain_tf import Plain_Transformer
 from .hop_tf import Hop_Transformer
+from .path_tf import Path_Transformer
 from .baseline_tf import Baseline_Transformer
 from .mlp import MLP
 from .tf_pool import tf_Pooling
@@ -19,6 +20,7 @@ _transformer_factory = {
     'baseline': None,
     'plain': Plain_Transformer,
     'hop': Hop_Transformer, 
+    'path': Path_Transformer
 }
 
 import torch.nn as nn
