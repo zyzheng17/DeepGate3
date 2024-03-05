@@ -85,7 +85,7 @@ class NpzParser():
             else:
                 name = 'inmemory'
             if self.args.sample_path_data:
-                name += '_path'
+                name += '_path_hop_{:}'.format(self.args.k_hop)
             return osp.join(self.root, name)
 
         @property
@@ -107,9 +107,9 @@ class NpzParser():
             
             for cir_idx, cir_name in enumerate(circuits):
                 start_time = time.time()
-                print('Parse: {}, {:} / {:} = {:.2f}%, ETA: {:.2f}s, Curr Size: {:}'.format(
+                print('Parse: {}, {:} / {:} = {:.2f}%, Time: {:.2f}s, ETA: {:.2f}s, Curr Size: {:}'.format(
                     cir_name, cir_idx, len(circuits), cir_idx / len(circuits) * 100, 
-                    tot_time * (len(circuits) - cir_idx), 
+                    tot_time, tot_time * (len(circuits) - cir_idx), 
                     len(data_list)
                 ))
 
@@ -119,7 +119,7 @@ class NpzParser():
                 x_one_hot = dg.construct_node_feature(x_data, 3)
                 edge_index = torch.tensor(edge_index, dtype=torch.long)
                 
-                if not self.args.enable_large_circuit and x_data.shape[0]>512:
+                if not self.args.enable_large_circuit and x_data.shape[0] > 512:
                     continue
                 if len(edge_index) == 0:
                     continue
@@ -152,12 +152,14 @@ class NpzParser():
                 
                 if self.args.sample_path_data:
                     # Sample paths
-                    sample_paths = get_sample_paths(graph, no_path=1000, max_path_len=64, path_hop_k=2)
+                    sample_paths, sample_paths_len = get_sample_paths(graph, no_path=1000, max_path_len=256, path_hop_k=self.args.k_hop)
                     graph.paths = torch.tensor(sample_paths, dtype=torch.long)
+                    graph.paths_len = torch.tensor(sample_paths_len, dtype=torch.long)
+                else:
+                    # Generate fanin fanout cone area keys 
+                    fanin_fanout_cone = get_fanin_fanout_cone(graph)
+                    graph.fanin_fanout_cone = fanin_fanout_cone
                     
-                # Generate fanin fanout cone area keys 
-                fanin_fanout_cone = get_fanin_fanout_cone(graph)
-                graph.fanin_fanout_cone = fanin_fanout_cone
                 # Random select hops 
                 rand_idx_list = list(range(len(x_data)))
                 random.shuffle(rand_idx_list)

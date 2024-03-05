@@ -2,6 +2,7 @@ import random
 import torch
 import time
 import shlex
+import numpy as np 
 import subprocess
 
 def run_command(command, timeout=-1):
@@ -23,6 +24,16 @@ def run_command(command, timeout=-1):
         return stdout, time.time() - start_time
     except TimeoutError as e:
         return e, -1
+    
+def hash_arr(arr):
+    p = 1543
+    md = 6291469
+    hash_res = 1
+    tmp_arr = arr.copy()
+    tmp_arr = np.sort(tmp_arr)
+    for ele in tmp_arr:
+        hash_res = (hash_res * p + ele) % md
+    return hash_res
 
 def normalize_1(data):
     min_val = data.max()

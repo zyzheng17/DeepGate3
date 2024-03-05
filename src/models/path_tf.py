@@ -35,10 +35,11 @@ class Path_Transformer(nn.Sequential):
             node_states = torch.cat([hs, hf], dim=1)
             next_hf = torch.zeros(hf.shape).to(self.device)
             for path_idx in range(no_path):
-                path_nodes = g.paths[path_idx][:(g.paths[path_idx] > 0).sum()].long()
+                path_nodes = g.paths[path_idx][:g.paths_len[path_idx]].long()
                 path_node_states = node_states[path_nodes].unsqueeze(0)
                 mask = torch.ones((len(path_nodes), len(path_nodes))).to(self.device)
                 next_hf[path_nodes] += self.transformer_blocks[layer](path_node_states, mask)[0, :, self.args.token_emb:]
+                
             hf = next_hf.detach().clone()
         
         return hf 

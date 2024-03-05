@@ -2,7 +2,7 @@ import random
 import torch
 import os 
 import numpy as np
-from utils.utils import run_command
+from utils.utils import run_command, hash_arr
 
 def logic(gate_type, signals):
     if gate_type == 1:  # AND
@@ -172,7 +172,10 @@ def get_sample_paths(g, no_path=1000, max_path_len=128, path_hop_k=0):
         
     # Sample Paths
     path_list = []
+    path_len_list = []
+    path_hash = []
     for _ in range(no_path):
+        main_track = []
         path = []
         node_idx = random.choice(PI_index).item()
         path.append(node_idx)
@@ -180,6 +183,7 @@ def get_sample_paths(g, no_path=1000, max_path_len=128, path_hop_k=0):
             node_idx = random.choice(fanout_list[node_idx])
             # Add hop
             q = [(node_idx, 0)]
+            main_track.append(node_idx)
             while len(q) > 0:
                 hop_node_idx, hop_level = q.pop(0)
                 if hop_level > path_hop_k:
@@ -187,12 +191,21 @@ def get_sample_paths(g, no_path=1000, max_path_len=128, path_hop_k=0):
                 path.append(hop_node_idx)
                 for fanin in fanin_list[hop_node_idx]:
                     q.append((fanin, hop_level+1))
+        hash_val = hash_arr(main_track)
+        if hash_val in path_hash:
+            continue
+        else:
+            path_hash.append(hash_val)
         path = list(set(path))
+        if len(path) < max_path_len:
+            path_len_list.append(len(path))
+        else:
+            path_len_list.append(max_path_len)
         while len(path) < max_path_len:
             path.append(-1)
         path_list.append(path[:max_path_len])
     
-    return path_list
+    return path_list, path_len_list
 
 def get_fanin_fanout_cone(g, max_no_nodes=512): 
     # Parse graph 
