@@ -27,12 +27,13 @@ class OrderedData(Data):
         elif key == 'hop_pi' or key == 'hop_po' or key == 'hop_nodes': 
             return self.num_nodes
         elif key == 'paths':
-            inc_val = torch.zeros(value.shape)
-            for i in range(inc_val.shape[0]):
-                for j in range(inc_val.shape[1]):
-                    if value[i, j] != -1:
-                        inc_val[i, j] = self.num_nodes
-            return inc_val
+            return self.num_nodes
+            # inc_val = torch.zeros(value.shape)
+            # for i in range(inc_val.shape[0]):
+            #     for j in range(inc_val.shape[1]):
+            #         if value[i, j] != -1:
+            #             inc_val[i, j] = self.num_nodes
+            # return inc_val
         else:
             return 0
 
@@ -44,6 +45,8 @@ class OrderedData(Data):
         elif key == 'hop_pi' or key == 'hop_po' or key == 'hop_pi_stats' or key == 'hop_tt' or key == 'no_hops':
             return 0
         elif key == 'hop_nodes' or key == 'hop_nodes_stats':
+            return 0
+        elif key == 'paths':
             return 0
         else:
             return 0
