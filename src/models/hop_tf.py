@@ -67,6 +67,8 @@ class Hop_Transformer(nn.Sequential):
             # Transformer 
             node_states = torch.cat([hs, hf], dim=1)
             hop_node_states = node_states[hop_nodes]
+            padding_mask = padding_mask.bool()
+            node_mask = node_mask.bool()
             hop_node_states = self.transformer_blocks(hop_node_states, src_key_padding_mask=padding_mask, src_mask=node_mask)
             for hop_idx in range(no_level_hops):
                 hop_valid_nodes = g.hop_nodes[level_hop_index[hop_idx]][g.hop_nodes_stats[level_hop_index[hop_idx]] == 1]
