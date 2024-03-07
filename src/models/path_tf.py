@@ -63,12 +63,13 @@ class Path_Transformer(nn.Sequential):
         masks = masks.repeat(self.args.head_num, 1, 1)
 
         node_states = torch.cat([hs, hf], dim=1)
-        next_hf = torch.zeros(hf.shape).to(self.device)
 
+        # Transformer
+        # TODO: Too slow, need to optimize
         path_node_states = node_states[padded_paths]
-        transformed_states = self.transformer_blocks(path_node_states, src_key_padding_mask=padding_mask, mask=masks)[:, :, self.args.token_emb:]
-        # TODO: 
-        next_hf = torch.scatter_add(next_hf, 0, padded_paths.unsqueeze(-1), transformed_states)
-        
+        transformed_states = self.transformer_blocks(path_node_states, src_key_padding_mask=padding_mask, mask=masks)
+        for path_idx in range(no_path):
+            path_nodes = g.paths[path_idx][:g.paths_len[path_idx]].long()
+            hf[path_nodes] += transformed_states[path_idx, :g.paths_len[path_idx], self.args.token_emb:]
         
         return hf 
