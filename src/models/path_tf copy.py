@@ -52,23 +52,24 @@ class Path_Transformer(nn.Sequential):
             path_nodes = g.paths[path_idx][:g.paths_len[path_idx]].long()
             padding_len = max_path_len - len(path_nodes)
             padded_path = torch.cat([path_nodes, torch.zeros(padding_len).long()])
-            mask = torch.zeros(len(path_nodes), len(path_nodes))
-            mask = torch.nn.functional.pad(mask, (0, padding_len, 0, padding_len), value=1)
+            mask = torch.ones(len(path_nodes), len(path_nodes))
+            mask = torch.nn.functional.pad(mask, (0, padding_len, 0, padding_len), value=0)
             padded_paths.append(padded_path.unsqueeze(0))
             masks.append(mask.unsqueeze(0))
 
         padded_paths = torch.cat(padded_paths, dim=0)
-        padding_mask = torch.zeros(no_path, max_path_len, dtype=bool).to(self.device)
         masks = torch.cat(masks, dim=0)
-        masks = masks.repeat(self.args.head_num, 1, 1)
 
         node_states = torch.cat([hs, hf], dim=1)
         next_hf = torch.zeros(hf.shape).to(self.device)
 
-        path_node_states = node_states[padded_paths]
-        transformed_states = self.transformer_blocks(path_node_states, src_key_padding_mask=padding_mask, mask=masks)[:, :, self.args.token_emb:]
+
         # TODO: 
-        next_hf = torch.scatter_add(next_hf, 0, padded_paths.unsqueeze(-1), transformed_states)
+        path_node_states = node_states[padded_paths].unsqueeze(2)
+        mask = masks.unsqueeze(1).unsqueeze(3)
+        transformed_states = self.transformer_blocks(path_node_states, mask)[:, :, self.args.token_emb:]
+        next_hf.scatter_add_(0, padded_paths.unsqueeze(-1).expand_as(transformed_states), transformed_states)
+            
         
         
         return hf 

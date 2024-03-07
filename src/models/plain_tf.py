@@ -76,16 +76,20 @@ class Plain_Transformer(nn.Sequential):
         padding_mask = torch.where(padding_mask==1, True, False)# Flase = compute attention, True = mask # inverse to fit nn.transformer
         padding_mask1 = padding_mask.view(bs,1,1,self.max_length).expand(-1,self.num_head,-1,-1).reshape(bs*self.num_head,1,self.max_length)
         # mask1_b = corr_m or padding_mask1
-        mask1 = torch.where(corr_m == 1, -torch.inf,0) + torch.where(padding_mask1 == 1, -torch.inf, 0)
-        mask1 = torch.logical_or(corr_m,padding_mask1)
+        # @ Ziyang: ? / change to -1e9? 
+        # mask1 = torch.where(corr_m == 1, -torch.inf, 0) + torch.where(padding_mask1 == 1, -torch.inf, 0)
+        mask1 = torch.where(corr_m == 1, float('inf'), 0.0) + torch.where(padding_mask1 == 1, float('inf'), 0.0)
+        mask1 = torch.logical_or(corr_m, padding_mask1)
         # key_padding_mask = key_padding_mask.view(bsz, 1, 1, src_len).   \
         #     expand(-1, num_heads, -1, -1).reshape(bsz * num_heads, 1, src_len)
-        for i in range(64):
-            for j in range(512):
-                if corr_m[i][j].sum() == 512:
-                    print(f'{i} {j} corr_m all True')
-                if mask1[i][j].sum() == 512:
-                    print(f'{i} {j} mask1 all True')
+        
+        # @ Ziyang: Remove? 
+        # for i in range(64):
+        #     for j in range(512):
+        #         if corr_m[i][j].sum() == 512:
+        #             print(f'{i} {j} corr_m all True')
+        #         if mask1[i][j].sum() == 512:
+        #             print(f'{i} {j} mask1 all True')
                 
         mask_hop_states = self.transformer_blocks(mask_hop_states, src_key_padding_mask=padding_mask, mask = corr_m)
 

@@ -27,9 +27,8 @@ class Hop_Transformer(nn.Sequential):
         # Model
         self.mask_token = nn.Parameter(torch.randn([args.token_emb,]))
         # self.tf = TransformerEncoderBlock(args, args.token_emb*2).to(self.device)
-        self.transformer_blocks = nn.ModuleList(
-            [TransformerBlock(args.token_emb*2, args.head_num, args.token_emb*args.head_num, args.dropout) for _ in range(args.TF_depth)]
-        )
+        TransformerEncoderLayer = nn.TransformerEncoderLayer(d_model=args.token_emb*2, nhead=args.head_num, dropout=0.1, batch_first=True)
+        self.transformer_blocks = TransformerEncoderLayer
         
     def clean_record(self):
         self.record = {}
@@ -37,21 +36,42 @@ class Hop_Transformer(nn.Sequential):
     def forward(self, g, hs, hf):
         hf = hf.detach().clone()
         hs = hs.detach().clone()
-        next_hf = hf.detach().clone()
-        bs = g.batch.max().item() + 1
+        no_hops = g.hop_nodes.shape[0]
+        max_hop_size = g.hop_nodes.shape[1]
         
         # mask po function embedding
         hf[g.hop_po.squeeze()] = self.mask_token
         
-        for layer in range(self.args.TF_depth):
+        # Hop TF
+        for level in range(g.forward_level.max()):
+            hop_mask = g.forward_level[g.hop_po] == level
+            level_hop_index = torch.nonzero(hop_mask.squeeze()).view(-1)
+            no_level_hops = len(level_hop_index)
+            if no_level_hops == 0:
+                continue
+            
+            # Prepare mask
+            padding_mask = torch.zeros(no_level_hops, max_hop_size).to(self.device)
+            node_mask = torch.zeros(0, max_hop_size, max_hop_size).to(self.device)
+            hop_nodes = torch.zeros(0, max_hop_size).to(self.device)
+            for hop_idx in range(no_level_hops):
+                no_nodes_in_hop = g.hop_nodes_stats[level_hop_index[hop_idx]].sum()
+                padding_mask[hop_idx, no_nodes_in_hop:] = 1
+                hop_nodes = torch.cat([hop_nodes, g.hop_nodes[level_hop_index[hop_idx]].unsqueeze(0)], dim=0)
+                mask = torch.zeros(no_nodes_in_hop, no_nodes_in_hop).to(self.device)
+                mask = torch.nn.functional.pad(mask, (0, max_hop_size-no_nodes_in_hop, 0, max_hop_size-no_nodes_in_hop), value=1)
+                node_mask = torch.cat([node_mask, mask.unsqueeze(0)], dim=0)
+            node_mask = node_mask.repeat(self.args.head_num, 1, 1)
+            hop_nodes = hop_nodes.long()
+            
+            # Transformer 
             node_states = torch.cat([hs, hf], dim=1)
-            next_hf = torch.zeros(hf.shape).to(self.device)     # One node can be covered by some hops, sum up all states
-            for hop_idx in range(len(g.hop_nodes)):
-                hop_nodes = g.hop_nodes[hop_idx][g.hop_nodes_stats[hop_idx] == 1]
-                hop_node_states = node_states[hop_nodes].unsqueeze(0)
-                mask = torch.ones((len(hop_nodes), len(hop_nodes))).to(self.device)
-                next_hf[hop_nodes] += self.transformer_blocks[layer](hop_node_states, mask)[0, :, self.args.token_emb:]
-            hf = next_hf.detach().clone()
-                    
+            hop_node_states = node_states[hop_nodes]
+            hop_node_states = self.transformer_blocks(hop_node_states, src_key_padding_mask=padding_mask, src_mask=node_mask)
+            for hop_idx in range(no_level_hops):
+                hop_valid_nodes = g.hop_nodes[level_hop_index[hop_idx]][g.hop_nodes_stats[level_hop_index[hop_idx]] == 1]
+                no_nodes_in_hop = len(hop_valid_nodes)
+                hf[hop_valid_nodes] += hop_node_states[hop_idx, :no_nodes_in_hop, self.args.token_emb:]            
+            
         return hf 
                 

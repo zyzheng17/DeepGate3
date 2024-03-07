@@ -27,12 +27,13 @@ class OrderedData(Data):
         elif key == 'hop_pi' or key == 'hop_po' or key == 'hop_nodes': 
             return self.num_nodes
         elif key == 'paths':
-            inc_val = torch.zeros(value.shape)
-            for i in range(inc_val.shape[0]):
-                for j in range(inc_val.shape[1]):
-                    if value[i, j] != -1:
-                        inc_val[i, j] = self.num_nodes
-            return inc_val
+            return self.num_nodes
+            # inc_val = torch.zeros(value.shape)
+            # for i in range(inc_val.shape[0]):
+            #     for j in range(inc_val.shape[1]):
+            #         if value[i, j] != -1:
+            #             inc_val[i, j] = self.num_nodes
+            # return inc_val
         else:
             return 0
 
@@ -44,6 +45,8 @@ class OrderedData(Data):
         elif key == 'hop_pi' or key == 'hop_po' or key == 'hop_pi_stats' or key == 'hop_tt' or key == 'no_hops':
             return 0
         elif key == 'hop_nodes' or key == 'hop_nodes_stats':
+            return 0
+        elif key == 'paths':
             return 0
         else:
             return 0
@@ -84,9 +87,13 @@ class NpzParser():
                 name = 'inmemory_debug'
             else:
                 name = 'inmemory'
+            if self.args.enable_large_circuit:
+                name += '_large'
             if self.args.sample_path_data:
                 name += '_path_hop_{:}'.format(self.args.k_hop)
-            return osp.join(self.root, name)
+            inmemory_path = osp.join(self.root, name)
+            print('Inmemory Dataset Path: ', inmemory_path)
+            return inmemory_path
 
         @property
         def raw_file_names(self) -> List[str]:
