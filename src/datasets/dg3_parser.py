@@ -162,7 +162,7 @@ class NpzParser():
                     sample_paths, sample_paths_len = get_sample_paths(graph, no_path=1000, max_path_len=256, path_hop_k=self.args.k_hop)
                     graph.paths = torch.tensor(sample_paths, dtype=torch.long)
                     graph.paths_len = torch.tensor(sample_paths_len, dtype=torch.long)
-                else:
+                if not self.args.sample_path_data and not self.args.no_cone:
                     # Generate fanin fanout cone area keys 
                     fanin_fanout_cone = get_fanin_fanout_cone(graph)
                     graph.fanin_fanout_cone = fanin_fanout_cone

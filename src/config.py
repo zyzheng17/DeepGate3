@@ -17,6 +17,7 @@ def get_parse_args():
     parser.add_argument('--k_hop', default=4, type=int)
     parser.add_argument('--max_hop_pi', default=6, type=int)
     parser.add_argument('--sample_path_data', action='store_true')
+    parser.add_argument('--no_cone', action='store_true')
     
     # Model 
     parser.add_argument('--pretrained_model_path', default='./DeepGate3-Transformer/trained/model_last.pth')
