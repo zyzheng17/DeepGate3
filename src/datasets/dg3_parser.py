@@ -91,6 +91,8 @@ class NpzParser():
                 name += '_large'
             if self.args.sample_path_data:
                 name += '_path_hop_{:}'.format(self.args.k_hop)
+            if self.args.no_cone:
+                name += '_nocone'
             inmemory_path = osp.join(self.root, name)
             print('Inmemory Dataset Path: ', inmemory_path)
             return inmemory_path
