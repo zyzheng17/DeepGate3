@@ -7,7 +7,7 @@ def get_parse_args():
     parser.add_argument('--exp_id', default='default')
     parser.add_argument('--local_rank', default=0, type=int)
     parser.add_argument('--debug', default=False , action='store_true')
-    parser.add_argument('--gpus', default='1', type=str)
+    parser.add_argument('--gpus', default='-1', type=str)
     
     # Dataset
     parser.add_argument('--data_dir', default='/uac/gds/zyzheng23/projects/DeepGate3-Transformer/data/train_dg3')
@@ -58,6 +58,8 @@ def get_parse_args():
     args.gpus_str = args.gpus
     args.gpus = [int(gpu) for gpu in args.gpus.split(',')]
     args.gpus = [i for i in range(len(args.gpus))] if args.gpus[0] >=0 else [-1]
+    if len(args.gpus) > 1 and torch.cuda.is_available():
+        args.en_distrubuted = True
     args.device = torch.device('cuda:0' if args.gpus[0] >= 0 and torch.cuda.is_available() else 'cpu')
     
     return args
