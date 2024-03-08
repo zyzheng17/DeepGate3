@@ -50,30 +50,47 @@ class Hop_Transformer(nn.Sequential):
             if no_level_hops == 0:
                 continue
             
-            # Prepare mask
-            padding_mask = torch.zeros(no_level_hops, max_hop_size).to(self.device)
-            node_mask = torch.zeros(0, max_hop_size, max_hop_size).to(self.device)
-            hop_nodes = torch.zeros(0, max_hop_size).to(self.device)
+            ########################################################
+            # For-loop Implementation
+            ########################################################
+            node_states = torch.cat([hs, hf], dim=1)
             for hop_idx in range(no_level_hops):
                 no_nodes_in_hop = g.hop_nodes_stats[level_hop_index[hop_idx]].sum()
-                padding_mask[hop_idx, no_nodes_in_hop:] = 1
-                hop_nodes = torch.cat([hop_nodes, g.hop_nodes[level_hop_index[hop_idx]].unsqueeze(0)], dim=0)
-                mask = torch.zeros(no_nodes_in_hop, no_nodes_in_hop).to(self.device)
-                mask = torch.nn.functional.pad(mask, (0, max_hop_size-no_nodes_in_hop, 0, max_hop_size-no_nodes_in_hop), value=1)
-                node_mask = torch.cat([node_mask, mask.unsqueeze(0)], dim=0)
-            node_mask = node_mask.repeat(self.args.head_num, 1, 1)
-            hop_nodes = hop_nodes.long()
+                hop_nodes = g.hop_nodes[level_hop_index[hop_idx]][:no_nodes_in_hop]
+                hop_node_states = node_states[hop_nodes]
+                hop_node_states = hop_node_states.unsqueeze(0)
+                hop_node_states = self.transformer_blocks(hop_node_states, src_key_padding_mask=None, src_mask=None)
+                hf[hop_nodes] += hop_node_states[:, :no_nodes_in_hop, self.args.token_emb:].squeeze(0)
             
-            # Transformer 
-            node_states = torch.cat([hs, hf], dim=1)
-            hop_node_states = node_states[hop_nodes]
-            padding_mask = padding_mask.bool()
-            node_mask = node_mask.bool()
-            hop_node_states = self.transformer_blocks(hop_node_states, src_key_padding_mask=padding_mask, src_mask=node_mask)
-            for hop_idx in range(no_level_hops):
-                hop_valid_nodes = g.hop_nodes[level_hop_index[hop_idx]][g.hop_nodes_stats[level_hop_index[hop_idx]] == 1]
-                no_nodes_in_hop = len(hop_valid_nodes)
-                hf[hop_valid_nodes] += hop_node_states[hop_idx, :no_nodes_in_hop, self.args.token_emb:]            
+            
+            ########################################################
+            # TODO: Batch Implementation
+            # Find Nan in hop_node_states
+            ########################################################
+            # # Prepare mask
+            # padding_mask = torch.zeros(no_level_hops, max_hop_size).to(self.device)
+            # node_mask = torch.zeros(0, max_hop_size, max_hop_size).to(self.device)
+            # hop_nodes = torch.zeros(0, max_hop_size).to(self.device)
+            # for hop_idx in range(no_level_hops):
+            #     no_nodes_in_hop = g.hop_nodes_stats[level_hop_index[hop_idx]].sum()
+            #     padding_mask[hop_idx, no_nodes_in_hop:] = 1
+            #     hop_nodes = torch.cat([hop_nodes, g.hop_nodes[level_hop_index[hop_idx]].unsqueeze(0)], dim=0)
+            #     mask = torch.zeros(no_nodes_in_hop, no_nodes_in_hop).to(self.device)
+            #     mask = torch.nn.functional.pad(mask, (0, max_hop_size-no_nodes_in_hop, 0, max_hop_size-no_nodes_in_hop), value=1)
+            #     node_mask = torch.cat([node_mask, mask.unsqueeze(0)], dim=0)
+            # node_mask = node_mask.repeat(self.args.head_num, 1, 1)
+            # hop_nodes = hop_nodes.long()
+            
+            # # Transformer 
+            # node_states = torch.cat([hs, hf], dim=1)
+            # hop_node_states = node_states[hop_nodes]
+            # padding_mask = padding_mask.bool()
+            # node_mask = node_mask.bool()
+            # hop_node_states = self.transformer_blocks(hop_node_states, src_key_padding_mask=padding_mask, src_mask=node_mask)
+            # for hop_idx in range(no_level_hops):
+            #     hop_valid_nodes = g.hop_nodes[level_hop_index[hop_idx]][g.hop_nodes_stats[level_hop_index[hop_idx]] == 1]
+            #     no_nodes_in_hop = len(hop_valid_nodes)
+            #     hf[hop_valid_nodes] += hop_node_states[hop_idx, :no_nodes_in_hop, self.args.token_emb:]            
             
         return hf 
                 
