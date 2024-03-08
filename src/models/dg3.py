@@ -71,12 +71,6 @@ class DeepGate3(nn.Module):
 
     def forward(self, g):
         bs = g.batch.max().item() + 1
-        # subgraph = {}
-        # subgraph['pi'] = g.hop_pi
-        # subgraph['po'] = g.hop_po
-        # subgraph['pi_stats'] = g.hop_pi_stats
-        # subgraph['tt'] = g.hop_tt
-        # Tokenizer
         hs, hf = self.tokenizer(g)
         hf = hf.detach()
         hs = hs.detach()
@@ -96,15 +90,12 @@ class DeepGate3(nn.Module):
         masks = []
 
         for i in range(g.hop_po.shape[0]):
-            # -1 Padding, 0 Logic-0, 1 Logic-1, 2 variable
-            # pi_idx = g.hop_pi[i][torch.argwhere(g.hop_pi_stats[i]!=-1)].squeeze(-1)
             pi_idx = g.hop_pi[i][g.hop_pi_stats[i]!=-1].squeeze(-1)
             pi_hop_stats = g.hop_pi_stats[i]
             pi_emb = hf[pi_idx]
             pi_emb = []
             for j in range(8):
                 if pi_hop_stats[j] == -1:
-                    # pi_emb.append(self.dc_token)
                     continue
                 elif pi_hop_stats[j] == 0:
                     pi_emb.append(self.zero_token)

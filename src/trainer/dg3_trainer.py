@@ -279,6 +279,7 @@ class Trainer():
         return loss_status
 
     def run_batch_mask(self, batch):
+        
         hs, hf, pred_prob, pred_hop_tt = self.model(batch)
         
         # DG2 Tasks
@@ -293,6 +294,7 @@ class Trainer():
         pred_tt = torch.where(pred_hop_tt_prob > 0.5, 1, 0)
         l_ftt = self.bce(pred_hop_tt_prob, batch.hop_tt.float())
         hamming_dist = torch.mean(torch.abs(pred_tt.float()-batch.hop_tt.float())).cpu()
+        # hamming_dist = torch.mean(torch.abs(pred_tt.float()-batch.hop_tt.float()))
         
         loss_status = {
             'prob': l_fprob,
