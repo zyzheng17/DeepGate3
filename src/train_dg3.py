@@ -11,7 +11,7 @@ import sys
 from config import get_parse_args
 
 from models.dg2 import DeepGate2
-from models.dg3 import DeepGate3
+from models.dg3 import DeepGate3,DeepGate3_structure
 from datasets.dataset_utils import npzitem_to_graph
 from datasets.dg3_parser import NpzParser
 from datasets.aig_parser import AIGParser
@@ -20,8 +20,18 @@ from trainer.dg3_trainer import Trainer
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset,DataLoader
-
+import random
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+
+#fix global seed
+def setup_seed(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+
+setup_seed(20)
 
 if __name__ == '__main__':
     args = get_parse_args()
@@ -35,8 +45,8 @@ if __name__ == '__main__':
     train_dataset, val_dataset = parser.get_dataset()
     
     # Create Model 
-    model = DeepGate3(args)
-    
+    # model = DeepGate3(args)
+    model = DeepGate3_structure(args)
     # Train 
     trainer = Trainer(
         args=args, 
