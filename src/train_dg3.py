@@ -21,6 +21,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset,DataLoader
 
+os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+
 if __name__ == '__main__':
     args = get_parse_args()
     if not os.path.exists(args.data_dir):

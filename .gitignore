@@ -1,6 +1,7 @@
 *inmemory*
 dataset
 deepgate3
+src/simulator/simulator
 
 *__pycache__
 *.pyc

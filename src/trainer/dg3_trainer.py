@@ -384,29 +384,39 @@ class Trainer():
                     bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
                 hamming_list = []
                 lprob = []
+                lall = []
+                lttcls = []
                 # lttsim=[]
                 # for iter_id, batch in enumerate(dataset):
                     # print(torch.mean(batch.hop_tt.float()))
+                    
+                if self.local_rank == 0:
+                    bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
 
                 for iter_id, batch in enumerate(dataset):
+                    time_stamp = time.time()
                     batch = batch.to(self.device)                    
-                    # print(torch.mean(batch.hop_tt.float()))
-                    # continue
-                    # loss_dict = self.run_batch(batch)
                     loss_dict,hamming_dist = self.run_batch_mask(batch)
+
                     hamming_list.append(hamming_dist)
                     lprob.append(loss_dict['prob'].item())
-                    # lttsim.append(loss_dict['tt_sim'].item())
-                    time_stamp = time.time()
                     loss = (loss_dict['prob'] * self.args.w_prob + \
                             loss_dict['tt_sim'] * self.args.w_tt_sim + \
                             loss_dict['tt_cls'] * self.args.w_tt_cls + \
                             loss_dict['g_sim'] * self.args.w_g_sim) / (self.args.w_prob + self.args.w_tt_sim + self.args.w_tt_cls + self.args.w_g_sim)
+                    lall.append(loss.item())
+                    lttcls.append(loss_dict['tt_cls'].item())
                     if phase == 'train':
                         self.optimizer.zero_grad()
                         loss.backward()
                         self.optimizer.step()
                     if self.local_rank == 0:
+                        Bar.suffix = '[{:}/{:}] |Tot: {total:} |ETA: {eta:} '.format(iter_id, len(dataset), total=bar.elapsed_td, eta=bar.eta_td)
+                        Bar.suffix += '|Prob: {:.4f} |TTCLS: {:.4f} |Loss: {:.4f} |Dist: {:.4f}'.format(
+                            torch.mean(torch.tensor(lprob)).item(), torch.mean(torch.tensor(lttcls)).item(),
+                            torch.mean(torch.tensor(lall)).item(), torch.mean(torch.tensor(hamming_list)).item()
+                        )
+                        bar.next()
                         # bar.suffix = '({phase}) Epoch: {epoch} | Iter: {iter} | Time: {time:.4f}'.format(
                         #     phase=phase, epoch=epoch, iter=iter_id, time=time.time()-time_stamp
                         # )
@@ -415,18 +425,22 @@ class Trainer():
                         #         bar.suffix += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
                         # bar.suffix += ' | hamming_dist: {:.4f}'.format(hamming_dist)
                         # bar.next()
-                        output_log = '({phase}) Epoch: {epoch} | Iter: {iter} | Time: {time:.4f}'.format(
-                            phase=phase, epoch=epoch, iter=iter_id, time=time.time()-time_stamp
-                        )
-                        for loss_key in loss_dict:
-                            if loss_dict[loss_key] !=0:
-                                output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
-                        output_log += ' | hamming_dist: {:.4f}'.format(hamming_dist)
-                        print(output_log)
+                        # output_log = '({phase}) Epoch: {epoch} | Iter: {iter} | Time: {time:.4f}'.format(
+                        #     phase=phase, epoch=epoch, iter=iter_id, time=time.time()-time_stamp
+                        # )
+                        # for loss_key in loss_dict:
+                        #     if loss_dict[loss_key] !=0:
+                        #         output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                        # output_log += ' | hamming_dist: {:.4f}'.format(hamming_dist)
+                        # print(output_log)
                 print(f'overall hamming distance:{torch.mean(torch.tensor(hamming_list))}')
                 print(f'overall probability loss:{torch.mean(torch.tensor(lprob))}')
-                # print(f'overall tt similarity loss:{torch.mean(torch.tensor(lttsim))}')
-                # del dataset
+                if self.local_rank == 0:
+                    self.logger.write('{} Epoch: {:}/{:}| Prob: {:.4f}| TTCLS: {:.4f}| Loss: {:.4f}| Dist: {:.4f}'.format(
+                        phase, epoch, num_epoch, 
+                        torch.mean(torch.tensor(lprob)).item(), torch.mean(torch.tensor(lttcls)).item(),
+                        torch.mean(torch.tensor(lall)).item(), torch.mean(torch.tensor(hamming_list)).item()
+                    ))
             
             # Learning rate decay
             self.model_epoch += 1
@@ -440,3 +454,4 @@ class Trainer():
         # del train_dataset
         # del val_dataset
         
+

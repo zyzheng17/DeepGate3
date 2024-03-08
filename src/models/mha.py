@@ -20,8 +20,6 @@ from torch import nn
 from torch import Tensor
 from torchvision.transforms import Compose, Resize, ToTensor
 
-torch.nn.MultiheadAttention
-torch.nn.TransformerEncoder
 class MultiHeadAttention(nn.Module):
     def __init__(self, args, token_dim):
         super().__init__()
