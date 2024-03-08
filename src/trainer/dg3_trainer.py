@@ -362,9 +362,9 @@ class Trainer():
             val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=self.num_workers)
         
         # AverageMeter
-        print(f'save model to {self.log_dir}')
+        # print(f'save model to {self.log_dir}')
         # self.save(os.path.join(self.log_dir, 'model_-1.pth'))
-        self.save('model_last.pth')
+        # self.save('model_last.pth')
         # Train
         print('[INFO] Start training, lr = {:.4f}'.format(self.optimizer.param_groups[0]['lr']))
         for epoch in range(num_epoch): 
@@ -431,14 +431,16 @@ class Trainer():
                         #         output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
                         # output_log += ' | hamming_dist: {:.4f}'.format(hamming_dist)
                         # print(output_log)
-                print(f'overall hamming distance:{torch.mean(torch.tensor(hamming_list))}')
-                print(f'overall probability loss:{torch.mean(torch.tensor(lprob))}')
+                # print(f'overall hamming distance:{torch.mean(torch.tensor(hamming_list))}')
+                # print(f'overall probability loss:{torch.mean(torch.tensor(lprob))}')
+                
                 if self.local_rank == 0:
                     self.logger.write('{} Epoch: {:}/{:}| Prob: {:.4f}| TTCLS: {:.4f}| Loss: {:.4f}| Dist: {:.4f}'.format(
                         phase, epoch, num_epoch, 
                         torch.mean(torch.tensor(lprob)).item(), torch.mean(torch.tensor(lttcls)).item(),
                         torch.mean(torch.tensor(lall)).item(), torch.mean(torch.tensor(hamming_list)).item()
                     ))
+                print()
             
             # Learning rate decay
             self.model_epoch += 1
@@ -448,6 +450,12 @@ class Trainer():
                     print('[INFO] Learning rate decay to {}'.format(self.lr))
                 for param_group in self.optimizer.param_groups:
                     param_group['lr'] = self.lr
+            
+            # Save model 
+            if self.local_rank == 0:
+                self.save(os.path.join(self.log_dir, 'model_last.pth'))
+                self.save(os.path.join(self.log_dir, 'model_{:}.pth'.format(epoch)))
+                print('[INFO] Save model to: ', os.path.join(self.log_dir, 'model_{:}.pth'.format(epoch)))
                     
         # del train_dataset
         # del val_dataset
