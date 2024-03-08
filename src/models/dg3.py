@@ -1,11 +1,7 @@
 import torch 
 import deepgate as dg
 import torch.nn as nn 
-# from .pool import PoolNet
-import sys
-# sys.path.append('/uac/gds/zyzheng23/projects/DeepGate3-Transformer/src/models/dg3.py')
-# sys.path.append('/uac/gds/zyzheng23/projects/DeepGate3-Transformer/src/models')
-# sys.path.append('/uac/gds/zyzheng23/projects/DeepGate3-Transformer/src')
+
 from .mlp import MLP
 from .dg2 import DeepGate2
 
@@ -214,7 +210,7 @@ class DeepGate3_structure(nn.Module):
     def forward(self, g):
         bs = g.batch.max().item() + 1
 
-        src_gate,tgt_gate = self.get_gate_pair(g)
+        src_gate, tgt_gate = self.get_gate_pair(g)
 
         hs, hf = self.tokenizer(g)
         hf = hf.detach()
@@ -230,8 +226,9 @@ class DeepGate3_structure(nn.Module):
 
         #gate-level pretrain task : predict global level
         level = self.readout_level(hs)
+
         #gate-level pretrain task : predict connection
-        src_gate,tgt_gate = self.get_gate_pair(g)
+        # src_gate,tgt_gate = self.get_gate_pair(g)
 
         #graph-level pretrain task : predict truth table
 
