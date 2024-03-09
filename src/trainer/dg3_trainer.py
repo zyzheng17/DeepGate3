@@ -354,9 +354,9 @@ class Trainer():
                 num_replicas=self.world_size,
                 rank=self.rank
             )
-            train_dataset = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True,
+            train_dataset = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=False, drop_last=True,
                                     num_workers=self.num_workers, sampler=train_sampler)
-            val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True,
+            val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, drop_last=True,
                                      num_workers=self.num_workers, sampler=val_sampler)
         else:
             train_dataset = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=self.num_workers)
