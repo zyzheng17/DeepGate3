@@ -1,11 +1,7 @@
 import torch 
 import deepgate as dg
 import torch.nn as nn 
-# from .pool import PoolNet
-import sys
-# sys.path.append('/uac/gds/zyzheng23/projects/DeepGate3-Transformer/src/models/dg3.py')
-# sys.path.append('/uac/gds/zyzheng23/projects/DeepGate3-Transformer/src/models')
-# sys.path.append('/uac/gds/zyzheng23/projects/DeepGate3-Transformer/src')
+
 from .mlp import MLP
 from .dg2 import DeepGate2
 
@@ -15,7 +11,7 @@ from .path_tf import Path_Transformer
 from .baseline_tf import Baseline_Transformer
 from .mlp import MLP
 from .tf_pool import tf_Pooling
-
+import numpy as np
 _transformer_factory = {
     'baseline': None,
     'plain': Plain_Transformer,
@@ -58,27 +54,13 @@ class DeepGate3(nn.Module):
         #pooling layer
         pool_layer = nn.TransformerEncoderLayer(d_model=self.hidden, nhead=4)
         self.tf_encoder = nn.TransformerEncoder(pool_layer, num_layers=3)
-
-        # self.hs_pool = tf_Pooling(args)
-        # self.hf_pool = tf_Pooling(args)
-        # self.tt_pred = [nn.Sequential(nn.Linear(self.args.token_emb, 1), nn.Sigmoid()) for _ in range(self.max_tt_len)]
-        # self.prob_pred = nn.Sequential(nn.Linear(self.args.token_emb, self.args.token_emb), nn.ReLU(), nn.Linear(self.args.token_emb, 1), nn.ReLU())
-        
-        self.cls_head = nn.Sequential(nn.Linear(self.hidden, self.hidden*4),
+        self.cls_head = nn.Sequential(nn.Linear(self.hidden*2, self.hidden*4),
                         nn.ReLU(),
                         nn.LayerNorm(self.hidden*4),
                         nn.Linear(self.hidden*4, self.max_tt_len))
-
-
-
+        
     def forward(self, g):
         bs = g.batch.max().item() + 1
-        # subgraph = {}
-        # subgraph['pi'] = g.hop_pi
-        # subgraph['po'] = g.hop_po
-        # subgraph['pi_stats'] = g.hop_pi_stats
-        # subgraph['tt'] = g.hop_tt
-        # Tokenizer
         hs, hf = self.tokenizer(g)
         hf = hf.detach()
         hs = hs.detach()
@@ -98,15 +80,12 @@ class DeepGate3(nn.Module):
         masks = []
 
         for i in range(g.hop_po.shape[0]):
-            # -1 Padding, 0 Logic-0, 1 Logic-1, 2 variable
-            # pi_idx = g.hop_pi[i][torch.argwhere(g.hop_pi_stats[i]!=-1)].squeeze(-1)
             pi_idx = g.hop_pi[i][g.hop_pi_stats[i]!=-1].squeeze(-1)
             pi_hop_stats = g.hop_pi_stats[i]
             pi_emb = hf[pi_idx]
             pi_emb = []
             for j in range(8):
                 if pi_hop_stats[j] == -1:
-                    # pi_emb.append(self.dc_token)
                     continue
                 elif pi_hop_stats[j] == 0:
                     pi_emb.append(self.zero_token)
@@ -143,13 +122,125 @@ class DeepGate3(nn.Module):
         
         return hs, hf, prob, hop_tt
     
-    def pred_tt(self, graph_emb, no_pi):
-        tt = []
-        for pi in range(self.max_tt_len):
-            tt.append(self.tt_pred[pi](graph_emb))
-        tt = torch.tensor(tt).squeeze()
-        return tt
-    
-    def pred_prob(self, hf):
-        prob = self.prob_pred(hf)
-        return prob
+
+class DeepGate3_structure(nn.Module):
+    def __init__(self, args):
+        super().__init__()
+        self.args = args
+        self.max_tt_len = 64
+        self.hidden = 128
+        self.tf_arch = args.tf_arch
+        # Tokenizer
+        self.tokenizer = DeepGate2()
+        self.tokenizer.load_pretrained(args.pretrained_model_path)
+
+        #special token
+        self.cls_token = nn.Parameter(torch.randn([self.hidden,]))
+        self.dc_token = nn.Parameter(torch.randn([self.hidden,]))
+        self.zero_token = nn.Parameter(torch.randn([self.hidden,]))
+        self.one_token = nn.Parameter(torch.randn([self.hidden,]))
+        self.pad_token = torch.zeros([self.hidden,]) # dont learn
+        self.pool_max_length = 10
+        self.PositionalEmbedding = nn.Embedding(10,self.hidden)
+        
+        # Transformer 
+        if args.tf_arch != 'baseline':
+            self.transformer = _transformer_factory[args.tf_arch](args)
+        
+        # Prediction 
+        self.readout_level = MLP(
+            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
+            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
+        )
+
+        #pooling layer
+        pool_layer = nn.TransformerEncoderLayer(d_model=self.hidden, nhead=4)
+        self.tf_encoder = nn.TransformerEncoder(pool_layer, num_layers=3)
+        self.cls_head = nn.Sequential(nn.Linear(self.hidden, self.hidden*4),
+                        nn.ReLU(),
+                        nn.LayerNorm(self.hidden*4),
+
+                        nn.Linear(self.hidden*4, self.max_tt_len))
+        
+    def get_gate_pair(self, g):
+        bs = g.batch.max().item() + 1
+        src_per_batch = 256
+        src_list = []
+        gate0_list = []
+        gate1_list = []
+        gate2_list = []
+        for i in range(bs):
+            #delete PI and PO
+            all_src = torch.argwhere(g.batch==i).squeeze().cpu().numpy()
+            PI_idx = torch.argwhere(g.forward_level[all_src]==0).squeeze().cpu().numpy()
+            PO_idx = torch.argwhere(g.backward_level[all_src]==0).squeeze().cpu().numpy()
+            all_src = np.setdiff1d(all_src, PI_idx, assume_unique=False) 
+            all_src = np.setdiff1d(all_src, PO_idx, assume_unique=False) 
+            all_src = torch.tensor(all_src)
+            
+            #random choose source gate
+            src_idx = torch.randint(0,all_src.shape[0],[src_per_batch])
+            src = all_src[src_idx]
+            src_list.append(src)
+            # get target gate
+            all_tgt = torch.argwhere(g.batch==i).squeeze()
+            label =  g.fanin_fanout_cone[src]
+            for j in range(src_per_batch):
+                #each class get 1 data point to make it balance
+                #class 0: no connection
+                gate_0 = torch.argwhere(label[j]==0).squeeze(-1)
+                gate_0 = gate_0[torch.randint(0,gate_0.shape[0],[1])]
+                gate0_list.append(all_tgt[gate_0])
+                #class 1: message in 
+                gate_1 = torch.argwhere(label[j]==1).squeeze(-1)
+                gate_1 = gate_1[torch.randint(0,gate_1.shape[0],[1])]
+                gate1_list.append(all_tgt[gate_1])
+                #class 2: message out
+                gate_2 = torch.argwhere(label[j]==2).squeeze(-1)
+                gate_2 = gate_2[torch.randint(0,gate_2.shape[0],[1])]
+                gate2_list.append(all_tgt[gate_2])
+
+        src_list = torch.stack(src_list)
+        gate0_list = torch.stack(gate0_list)
+        gate1_list = torch.stack(gate1_list)
+        gate2_list = torch.stack(gate2_list)
+
+        
+        
+    def forward(self, g):
+        bs = g.batch.max().item() + 1
+
+        src_gate, tgt_gate = self.get_gate_pair(g)
+
+        hs, hf = self.tokenizer(g)
+        hf = hf.detach()
+        hs = hs.detach()
+        
+        # Refine-Transformer 
+        if self.tf_arch != 'baseline':
+            #non-residual
+            hs = self.transformer(g, hs, hf)
+
+            #with-residual
+            # hf = hf + self.transformer(g, hs, hf)
+
+        #gate-level pretrain task : predict global level
+        level = self.readout_level(hs)
+
+        #gate-level pretrain task : predict connection
+        # src_gate,tgt_gate = self.get_gate_pair(g)
+
+        #graph-level pretrain task : predict truth table
+
+        hop_hs = hs #bs seq_len hidden
+        pos = torch.arange(hop_hs.shape[1]).unsqueeze(0).repeat(hop_hs.shape[0],1).to(hf.device)
+        hop_hs = hop_hs + self.PositionalEmbedding(pos)
+
+        hop_hs = hop_hs.permute(1,0,2)#seq_len bs hidden
+        masks = 1 - torch.stack(masks).to(hs.device).float() #bs seq_len 
+        
+        hop_hs = self.tf_encoder(hop_hs,src_key_padding_mask = masks.float())
+        hop_hs = hop_hs.permute(1,0,2)[:,0]
+        hop_tt = self.cls_head(hop_hs)
+        
+        return hs, hf, level, hop_tt

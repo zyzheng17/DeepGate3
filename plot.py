@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 
-path = '/uac/gds/zyzheng23/projects/DeepGate3-Transformer/exp/train_nomask_sepc_pooling_nntrm_alltask_corrmask.log'
+path = '/uac/gds/zyzheng23/projects/DeepGate3-Transformer/exp/train_nomask_sepc_pooling_nntrm_alltask_corrmask_residual_epoch=200.log'
 name = path.split('/')[-1].split('.')[0]
 hams = []
 probs = []
