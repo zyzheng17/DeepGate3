@@ -456,9 +456,10 @@ class Trainer():
             
             # Save model 
             if self.local_rank == 0:
-                self.save(os.path.join(self.log_dir, 'model_last.pth'))
-                self.save(os.path.join(self.log_dir, 'model_{:}.pth'.format(epoch)))
-                print('[INFO] Save model to: ', os.path.join(self.log_dir, 'model_{:}.pth'.format(epoch)))
+                self.save('model_last.pth')
+                if epoch % 10 == 0:
+                    self.save('model_{:}.pth'.format(epoch))
+                    print('[INFO] Save model to: ', os.path.join(self.log_dir, 'model_{:}.pth'.format(epoch)))
                     
         # del train_dataset
         # del val_dataset

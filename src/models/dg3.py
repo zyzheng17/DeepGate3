@@ -54,7 +54,7 @@ class DeepGate3(nn.Module):
         #pooling layer
         pool_layer = nn.TransformerEncoderLayer(d_model=self.hidden, nhead=4)
         self.tf_encoder = nn.TransformerEncoder(pool_layer, num_layers=3)
-        self.cls_head = nn.Sequential(nn.Linear(self.hidden*2, self.hidden*4),
+        self.cls_head = nn.Sequential(nn.Linear(self.hidden, self.hidden*4),
                         nn.ReLU(),
                         nn.LayerNorm(self.hidden*4),
                         nn.Linear(self.hidden*4, self.max_tt_len))
