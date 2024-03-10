@@ -282,11 +282,16 @@ class Trainer():
         
         hs, hf, pred_prob, pred_hop_tt = self.model(batch)
         
+        if torch.isnan(pred_hop_tt).sum() > 0:
+            print('nan in pred_hop_tt')
+            print(batch.name)
+            exit(0)
+        
         # DG2 Tasks
         l_fprob = self.l1_loss(pred_prob, batch.prob.unsqueeze(1).to(self.device))
-        pred_tt_sim = torch.cosine_similarity(hf[batch.tt_pair_index[0]], hf[batch.tt_pair_index[1]], eps=1e-8)
-        pred_tt_sim = normalize_1(pred_tt_sim).float().to(self.device)
-        tt_sim = normalize_1(batch.tt_sim).float().to(self.device)
+        # pred_tt_sim = torch.cosine_similarity(hf[batch.tt_pair_index[0]], hf[batch.tt_pair_index[1]], eps=1e-8)
+        # pred_tt_sim = normalize_1(pred_tt_sim).float().to(self.device)
+        # tt_sim = normalize_1(batch.tt_sim).float().to(self.device)
         # l_fttsim = self.l1_loss(pred_tt_sim, tt_sim)
         
         # Graph mask prediction 
