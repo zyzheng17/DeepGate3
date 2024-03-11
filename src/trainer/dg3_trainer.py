@@ -282,16 +282,22 @@ class Trainer():
         
         hs, hf, pred_prob, pred_hop_tt = self.model(batch)
         
+        if torch.isnan(pred_hop_tt).sum() > 0:
+            print('nan in pred_hop_tt')
+            print(batch.name)
+            exit(0)
+        
         # DG2 Tasks
         l_fprob = self.l1_loss(pred_prob, batch.prob.unsqueeze(1).to(self.device))
-        pred_tt_sim = torch.cosine_similarity(hf[batch.tt_pair_index[0]], hf[batch.tt_pair_index[1]], eps=1e-8)
-        pred_tt_sim = normalize_1(pred_tt_sim).float().to(self.device)
-        tt_sim = normalize_1(batch.tt_sim).float().to(self.device)
+        # pred_tt_sim = torch.cosine_similarity(hf[batch.tt_pair_index[0]], hf[batch.tt_pair_index[1]], eps=1e-8)
+        # pred_tt_sim = normalize_1(pred_tt_sim).float().to(self.device)
+        # tt_sim = normalize_1(batch.tt_sim).float().to(self.device)
         # l_fttsim = self.l1_loss(pred_tt_sim, tt_sim)
         
         # Graph mask prediction 
         pred_hop_tt_prob = nn.Sigmoid()(pred_hop_tt).to(self.device)
         pred_tt = torch.where(pred_hop_tt_prob > 0.5, 1, 0)
+        pred_hop_tt_prob = torch.clamp(pred_hop_tt_prob, 1e-6, 1-1e-6)
         l_ftt = self.bce(pred_hop_tt_prob, batch.hop_tt.float())
         hamming_dist = torch.mean(torch.abs(pred_tt.float()-batch.hop_tt.float())).cpu()
         # hamming_dist = torch.mean(torch.abs(pred_tt.float()-batch.hop_tt.float()))
@@ -318,9 +324,9 @@ class Trainer():
                 num_replicas=self.world_size,
                 rank=self.rank
             )
-            train_dataset = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True,
+            train_dataset = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=False, drop_last=True,
                                     num_workers=self.num_workers, sampler=train_sampler)
-            val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True,
+            val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, drop_last=True,
                                      num_workers=self.num_workers, sampler=val_sampler)
         else:
             train_dataset = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=self.num_workers)
@@ -359,7 +365,10 @@ class Trainer():
                 for iter_id, batch in enumerate(dataset):
                     time_stamp = time.time()
                     batch = batch.to(self.device)                    
-                    loss_dict,hamming_dist = self.run_batch_mask(batch)
+                    loss_dict, hamming_dist = self.run_batch_mask(batch)
+                    
+                    if len(loss_dict) == 0:
+                        continue
 
                     hamming_list.append(hamming_dist)
                     lprob.append(loss_dict['prob'].item())
@@ -418,9 +427,10 @@ class Trainer():
             
             # Save model 
             if self.local_rank == 0:
-                self.save(os.path.join(self.log_dir, 'model_last.pth'))
-                self.save(os.path.join(self.log_dir, 'model_{:}.pth'.format(epoch)))
-                print('[INFO] Save model to: ', os.path.join(self.log_dir, 'model_{:}.pth'.format(epoch)))
+                self.save('model_last.pth')
+                if epoch % 10 == 0:
+                    self.save('model_{:}.pth'.format(epoch))
+                    print('[INFO] Save model to: ', os.path.join(self.log_dir, 'model_{:}.pth'.format(epoch)))
                     
         # del train_dataset
         # del val_dataset

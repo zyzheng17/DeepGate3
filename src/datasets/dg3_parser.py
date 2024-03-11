@@ -15,7 +15,9 @@ import os.path as osp
 sys.path.append('/research/d1/gds/zyzheng23/projects/deepgate3/src')
 from utils.dataset_utils import parse_pyg_dg3
 
-from utils.circuit_utils import complete_simulation, prepare_dg2_labels_cpp, get_fanin_fanout_cone, get_sample_paths, remove_unconnected
+from utils.circuit_utils import complete_simulation, prepare_dg2_labels_cpp, \
+    get_fanin_fanout_cone, get_sample_paths, remove_unconnected, \
+    get_connection_pairs, get_hop_stru_sim
 
 class OrderedData(Data):
     def __init__(self): 
@@ -26,14 +28,16 @@ class OrderedData(Data):
             return self.num_nodes
         elif key == 'hop_pi' or key == 'hop_po' or key == 'hop_nodes': 
             return self.num_nodes
+        elif key == 'hop_pair_index':
+            return self.num_nodes
         elif key == 'paths':
             return self.num_nodes
-            # inc_val = torch.zeros(value.shape)
-            # for i in range(inc_val.shape[0]):
-            #     for j in range(inc_val.shape[1]):
-            #         if value[i, j] != -1:
-            #             inc_val[i, j] = self.num_nodes
-            # return inc_val
+            inc_val = torch.zeros(value.shape)
+            for i in range(inc_val.shape[0]):
+                for j in range(inc_val.shape[1]):
+                    if value[i, j] != -1:
+                        inc_val[i, j] = self.num_nodes
+            return inc_val
         else:
             return 0
 
@@ -41,6 +45,8 @@ class OrderedData(Data):
         if key == 'forward_index' or key == 'backward_index':
             return 0
         elif key == "edge_index" or key == 'tt_pair_index' or key == 'rc_pair_index':
+            return 1
+        elif key == "connect_pair_index" or key == 'hop_pair_index':
             return 1
         elif key == 'hop_pi' or key == 'hop_po' or key == 'hop_pi_stats' or key == 'hop_tt' or key == 'no_hops':
             return 0
@@ -93,6 +99,8 @@ class NpzParser():
                 name += '_path_hop_{:}'.format(self.args.k_hop)
             if self.args.no_cone:
                 name += '_nocone'
+            if self.args.no_stru:
+                name += '_nostru'
             inmemory_path = osp.join(self.root, name)
             print('Inmemory Dataset Path: ', inmemory_path)
             return inmemory_path
@@ -168,6 +176,18 @@ class NpzParser():
                     # Generate fanin fanout cone area keys 
                     fanin_fanout_cone = get_fanin_fanout_cone(graph)
                     graph.fanin_fanout_cone = fanin_fanout_cone
+                if not self.args.no_stru:
+                    if not self.args.sample_path_data and not self.args.no_cone:
+                        cone = graph.fanin_fanout_cone
+                    else:
+                        cone = None
+                    connect_pair_index, connect_label = get_connection_pairs(
+                        x_data, edge_index, forward_level, 
+                        no_src=int(len(x_data)*0.2), no_dst=int(len(x_data)*0.2),
+                        cone=cone
+                    )
+                    graph.connect_pair_index = connect_pair_index.T
+                    graph.connect_label = connect_label
                     
                 # Random select hops 
                 rand_idx_list = list(range(len(x_data)))
@@ -246,6 +266,12 @@ class NpzParser():
                 graph.hop_nodes_stats = all_hop_nodes_stats
                 graph.hop_tt = torch.tensor(all_tt, dtype=torch.long)
                 graph.no_hops = torch.tensor(all_no_hops, dtype=torch.long)
+                
+                if not self.args.no_stru:
+                    hop_pair_index, hop_ged = get_hop_stru_sim(all_hop_nodes, all_hop_po, edge_index, no_pairs=int(len(all_hop_nodes) * 0.1))
+                    no_pairs = len(hop_pair_index)
+                    graph.hop_pair_index = hop_pair_index.T.reshape(2, no_pairs)
+                    graph.hop_ged = hop_ged
                     
                 data_list.append(graph)
                 tot_time = time.time() - start_time

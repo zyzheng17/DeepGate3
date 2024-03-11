@@ -18,6 +18,7 @@ def get_parse_args():
     parser.add_argument('--max_hop_pi', default=6, type=int)
     parser.add_argument('--sample_path_data', action='store_true')
     parser.add_argument('--no_cone', action='store_true')
+    parser.add_argument('--no_stru', action='store_true')
     
     # Model 
     parser.add_argument('--pretrained_model_path', default='./DeepGate3-Transformer/trained/model_last.pth')
@@ -58,12 +59,12 @@ def get_parse_args():
     args.gpus_str = args.gpus
     args.gpus = [int(gpu) for gpu in args.gpus.split(',')]
     args.gpus = [i for i in range(len(args.gpus))] if args.gpus[0] >=0 else [-1]
-    # if len(args.gpus) > 1 and torch.cuda.is_available():
-    #     args.en_distrubuted = True
-    # args.device = torch.device('cuda:0' if args.gpus[0] >= 0 and torch.cuda.is_available() else 'cpu')
+    if len(args.gpus) > 1 and torch.cuda.is_available():
+        args.en_distrubuted = True
+    args.device = torch.device('cuda:0' if args.gpus[0] >= 0 and torch.cuda.is_available() else 'cpu')
 
 
-    args.en_distrubuted = False
-    args.device = torch.device('cuda:3')
+    # args.en_distrubuted = False
+    # args.device = torch.device('cuda:3')
     
     return args
