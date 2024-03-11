@@ -171,9 +171,12 @@ class DeepGate3_structure(nn.Module):
         gate2_list = []
         for i in range(bs):
             #delete PI and PO
-            all_src = torch.argwhere(g.batch==i).squeeze().cpu().numpy()
-            PI_idx = torch.argwhere(g.forward_level[all_src]==0).squeeze().cpu().numpy()
-            PO_idx = torch.argwhere(g.backward_level[all_src]==0).squeeze().cpu().numpy()
+            # all_src = torch.argwhere(g.batch==i).squeeze().cpu().numpy()
+            # PI_idx = torch.argwhere(g.forward_level[all_src]==0).squeeze().cpu().numpy()
+            # PO_idx = torch.argwhere(g.backward_level[all_src]==0).squeeze().cpu().numpy()
+            all_src = g.forward_index[g.batch==i].squeeze()
+            PI_idx = all_src[g.forward_level[all_src]==0].squeeze().cpu().numpy()
+            PO_idx = all_src[g.backward_level[all_src]==0].squeeze().cpu().numpy()
             all_src = np.setdiff1d(all_src, PI_idx, assume_unique=False) 
             all_src = np.setdiff1d(all_src, PO_idx, assume_unique=False) 
             all_src = torch.tensor(all_src)
@@ -183,20 +186,24 @@ class DeepGate3_structure(nn.Module):
             src = all_src[src_idx]
             src_list.append(src)
             # get target gate
-            all_tgt = torch.argwhere(g.batch==i).squeeze()
+            # all_tgt = torch.argwhere(g.batch==i).squeeze()
+            all_tgt = g.forward_index[g.batch==i].squeeze()
             label =  g.fanin_fanout_cone[src]
             for j in range(src_per_batch):
                 #each class get 1 data point to make it balance
                 #class 0: no connection
-                gate_0 = torch.argwhere(label[j]==0).squeeze(-1)
+                # gate_0 = torch.argwhere(label[j]==0).squeeze(-1)
+                gate_0 = all_src[(label[j]==0)[:len(all_src)]].squeeze(-1)
                 gate_0 = gate_0[torch.randint(0,gate_0.shape[0],[1])]
                 gate0_list.append(all_tgt[gate_0])
                 #class 1: message in 
-                gate_1 = torch.argwhere(label[j]==1).squeeze(-1)
+                # gate_1 = torch.argwhere(label[j]==1).squeeze(-1)
+                gate_1 = all_src[(label[j]==1)[:len(all_src)]].squeeze(-1)
                 gate_1 = gate_1[torch.randint(0,gate_1.shape[0],[1])]
                 gate1_list.append(all_tgt[gate_1])
                 #class 2: message out
-                gate_2 = torch.argwhere(label[j]==2).squeeze(-1)
+                # gate_2 = torch.argwhere(label[j]==2).squeeze(-1)
+                gate_2 = all_src[(label[j]==2)[:len(all_src)]].squeeze(-1)
                 gate_2 = gate_2[torch.randint(0,gate_2.shape[0],[1])]
                 gate2_list.append(all_tgt[gate_2])
 

@@ -402,7 +402,10 @@ class Trainer():
                 for iter_id, batch in enumerate(dataset):
                     time_stamp = time.time()
                     batch = batch.to(self.device)                    
-                    loss_dict,hamming_dist = self.run_batch_mask(batch)
+                    loss_dict, hamming_dist = self.run_batch_mask(batch)
+                    
+                    if len(loss_dict) == 0:
+                        continue
 
                     hamming_list.append(hamming_dist)
                     lprob.append(loss_dict['prob'].item())

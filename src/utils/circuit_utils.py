@@ -2,6 +2,7 @@ import random
 import torch
 import os 
 import numpy as np
+import networkx as nx
 from utils.utils import run_command, hash_arr
 
 def logic(gate_type, signals):
@@ -370,4 +371,92 @@ def prepare_dg2_labels_cpp(g, no_patterns=15000,
     os.remove(res_filepath)
     
     return prob, tt_index, tt_sim
+
+def get_connection_pairs(x_data, edge_index, forward_level, no_src=512, no_dst=512, cone=None):
+    no_nodes = len(x_data)
+    fanin_list = [[] for _ in range(no_nodes)]
+    fanout_list = [[] for _ in range(no_nodes)]
+    for edge in edge_index:
+        fanin_list[edge[1]].append(edge[0])
+        fanout_list[edge[0]].append(edge[1])
+    
+    # Sample src 
+    connect_pair_index = []
+    connect_label = []
+    for src_k in range(no_src):
+        src = random.randint(0, no_nodes-1)
+        # Find all connection 
+        fanin_cone = []
+        fanout_cone = []
+        if cone is not None:
+            for idx in range(no_nodes):
+                if cone[src][idx] == 1:
+                    fanin_cone.append(idx)
+                elif cone[src][idx] == 2:
+                    fanout_cone.append(idx)
+        else:
+            # Search Fanin cone 
+            q = [src]
+            while len(q) > 0:
+                node_idx = q.pop(0)
+                fanin_cone.append(node_idx)
+                for pre_k in fanin_list[node_idx]:
+                    if pre_k not in fanin_cone:
+                        q.append(pre_k)
+            # Search Fanout cone 
+            q = [src]
+            while len(q) > 0:
+                node_idx = q.pop(0)
+                fanout_cone.append(node_idx)
+                for post_k in fanout_list[node_idx]:
+                    if post_k not in fanout_cone:
+                        q.append(post_k)
+        # Sample dst
+        dst_k = 0
+        while dst_k < no_dst:
+            dst_k += 1
+            dst = random.randint(0, no_nodes-1)
+            while dst == src:
+                dst = random.randint(0, no_nodes-1)
+            # Check connection 
+            pair = [src, dst]
+            if pair in connect_pair_index:
+                continue
+            connect_pair_index.append([src, dst])
+            if forward_level[dst] < forward_level[src] and dst in fanin_cone:     # in fanin cone
+                connect_label.append(1)
+            elif forward_level[dst] > forward_level[src] and dst in fanout_cone:    # in fanout cone
+                connect_label.append(2)
+            else:
+                connect_label.append(0)
+    
+    connect_pair_index = torch.tensor(connect_pair_index, dtype=torch.long)
+    connect_label = torch.tensor(connect_label, dtype=torch.long)
+        
+    
+    return connect_pair_index, connect_label
+
+def get_hop_stru_sim(hop_nodes_list, hop_po_list, edge_index, no_pairs):
+    no_hops = len(hop_nodes_list)
+    hop_pair_index = np.random.randint(0, no_hops, [no_pairs, 2])
+    hop_ged = []
+    hop_node_pair = []
+    for pair in hop_pair_index:
+        if pair[0] == pair[1]:
+            ged = 0
+        else:
+            g1 = nx.DiGraph()
+            g2 = nx.DiGraph()
+            for edge in edge_index.T:
+                if edge[0] in hop_nodes_list[pair[0]] and edge[1] in hop_nodes_list[pair[0]]:
+                    g1.add_edge(edge[0].item(), edge[1].item())
+                if edge[0] in hop_nodes_list[pair[1]] and edge[1] in hop_nodes_list[pair[1]]:
+                    g2.add_edge(edge[0].item(), edge[1].item())
+            ged = nx.graph_edit_distance(g1, g2, timeout=0.5)
+        
+        hop_node_pair.append([hop_po_list[pair[0]], hop_po_list[pair[1]]])
+        hop_ged.append(ged)
+    hop_node_pair = torch.tensor(hop_node_pair, dtype=torch.long)
+    hop_ged = torch.tensor(hop_ged, dtype=torch.float)
+    return hop_node_pair, hop_ged
     

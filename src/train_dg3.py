@@ -45,8 +45,8 @@ if __name__ == '__main__':
     train_dataset, val_dataset = parser.get_dataset()
     
     # Create Model 
-    model = DeepGate3(args)
-    # model = DeepGate3_structure(args)
+    # model = DeepGate3(args)
+    model = DeepGate3_structure(args)
     # Train 
     trainer = Trainer(
         args=args, 
