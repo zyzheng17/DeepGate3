@@ -305,43 +305,6 @@ class Trainer():
         
         return loss_status, hamming_dist
 
-
-    def run_batch_baseline(self, batch):
-        # Get all subgraph (k-hops)
-
-        subgraph = get_random_hop(batch, self.args.k_hop, hop_per_circuit=self.hop_per_circuit)
-        # Get embeddings: hs/hf node-level, hop_hs/hop_hf graph-level
-        logits = self.model(batch, subgraph)
-        
-        # Functional Tasks (Graph mask prediction)
-        l_ftt = 0
-        hamming_dist = 0
-        tt_list, no_pi_list, sample_list = sample_functional_tt(subgraph, 100)
-        for graph_k, idx in enumerate(sample_list):
-            if no_pi_list[graph_k] > 6:
-                continue
-            pred_prob = nn.Sigmoid()(logits[idx]).to(self.device)
-            pred_tt = torch.where(pred_prob>0.5,1,0)
-            label_tt = torch.tensor(tt_list[graph_k])
-            while len(label_tt) < 64:
-                label_tt = torch.cat([label_tt, label_tt])
-            pred_tt = pred_tt.to(self.device)
-            label_tt = label_tt.to(self.device)
-            l_ftt += self.bce(pred_prob, label_tt.float())
-            hamming_dist += torch.mean(torch.abs(pred_tt.float()-label_tt.float()))
-        l_ftt /= len(sample_list)
-        hamming_dist /= len(sample_list)
-
-        loss_status = {
-            'prob': 0,
-            'tt_sim': 0,
-            'tt_cls': l_ftt,
-            'g_sim': 0,
-        }
-        
-        return loss_status,hamming_dist
-
-    
     def train(self, num_epoch, train_dataset, val_dataset):
         # Distribute Dataset
         if self.distributed:
