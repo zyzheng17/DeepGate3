@@ -149,7 +149,7 @@ class NpzParser():
                 graph.x = x_one_hot
                 graph.edge_index = edge_index
                 graph.name = cir_name
-                graph.gate = torch.tensor(x_data[:, 1], dtype=torch.long)
+                graph.gate = torch.tensor(x_data[:, 1], dtype=torch.long).unsqueeze(1)
                 graph.forward_index = forward_index
                 graph.backward_index = backward_index
                 graph.forward_level = forward_level
@@ -157,7 +157,7 @@ class NpzParser():
                 graph.no_gates = torch.tensor(x_data.shape[0], dtype=torch.long)
                 
                 # DeepGate2 (node-level) labels
-                prob, tt_pair_index, tt_sim = prepare_dg2_labels_cpp(graph, 15000)
+                prob, tt_pair_index, tt_sim = prepare_dg2_labels_cpp(self.args, graph, 15000)
                 assert max(prob).item() <= 1.0 and min(prob).item() >= 0.0
                 if len(tt_pair_index) == 0:
                     tt_pair_index = torch.zeros((2, 0), dtype=torch.long)
