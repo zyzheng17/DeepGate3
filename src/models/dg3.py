@@ -155,14 +155,15 @@ class DeepGate3_structure(nn.Module):
             dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
             num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
         )
+        self.cls_head = MLP(
+            dim_in=self.args.token_emb*2, dim_hidden=self.args.mlp_hidden, dim_pred=3, 
+            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
+        )
+        
 
         #pooling layer
         pool_layer = nn.TransformerEncoderLayer(d_model=self.hidden, nhead=4, batch_first=True)
         self.tf_encoder = nn.TransformerEncoder(pool_layer, num_layers=3)
-        self.cls_head = nn.Sequential(nn.Linear(self.hidden, self.hidden*4),
-                        nn.ReLU(),
-                        nn.LayerNorm(self.hidden*4),
-                        nn.Linear(self.hidden*4, 3))
         
 
         
@@ -234,11 +235,14 @@ class DeepGate3_structure(nn.Module):
             # hf = hf + self.transformer(g, hs, hf)
 
         #gate-level pretrain task : predict global level
-        level = self.readout_level(hs)
+        pred_level = self.readout_level(hs)
 
         #gate-level pretrain task : predict connection
         # src_gate,tgt_gate = self.get_gate_pair(g)
-        connection = None
+        gates = hs[g.connect_pair_index]
+        gates = gates.permute(1,2,0).reshape(-1,self.hidden*2)
+        pred_connect = self.cls_head(gates)
+
         #graph-level pretrain task : predict truth table
         hop_hs = []
         masks = []
@@ -274,6 +278,6 @@ class DeepGate3_structure(nn.Module):
         
         hop_hs = self.tf_encoder(hop_hs,src_key_padding_mask = masks.float())
         hop_hs = hop_hs[:,0]
-        hop_num = self.readout_num(hop_hs)
+        pred_hop_num = self.readout_num(hop_hs)
         
-        return hs, hf, level, connection, hop_num
+        return hs, hf, pred_level, pred_connect, pred_hop_num
