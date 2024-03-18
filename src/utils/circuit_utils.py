@@ -285,7 +285,7 @@ def get_fanin_fanout_cone(g, max_no_nodes=512):
     
     return fanin_fanout_cones
 
-def prepare_dg2_labels_cpp(g, no_patterns=15000, 
+def prepare_dg2_labels_cpp(args, g, no_patterns=15000, 
                            simulator='./src/simulator/simulator', 
                            graph_filepath='./tmp/graph.txt', 
                            res_filepath='./tmp/res.txt'):
@@ -300,29 +300,33 @@ def prepare_dg2_labels_cpp(g, no_patterns=15000,
     for k, idx in enumerate(g['forward_index']):
         level_list[g['forward_level'][k].item()].append(k)
     
-    # PI Cover
-    pi_cover = [[] for _ in range(no_nodes)]
-    for level in range(len(level_list)):
-        for idx in level_list[level]:
-            if level == 0:
-                pi_cover[idx].append(idx)
-            tmp_pi_cover = []
-            for pre_k in fanin_list[idx]:
-                tmp_pi_cover += pi_cover[pre_k]
-            tmp_pi_cover = list(set(tmp_pi_cover))
-            pi_cover[idx] += tmp_pi_cover
-    
-    # Sample TT pairs 
-    sample_idx = []
-    tt_sim_list = []
-    for node_a in range(0, no_nodes):
-        for node_b in range(node_a+1, no_nodes):
-            if pi_cover[node_a] != pi_cover[node_b]:
-                continue
-            if node_a in fanin_list[node_b] or node_b in fanin_list[node_a]:
-                continue
-            sample_idx.append([node_a, node_b])
-            tt_sim_list.append([-1])
+    if args.test:
+        sample_idx = torch.zeros([0, 2], dtype=torch.long)
+        tt_sim = torch.zeros([0], dtype=torch.float)
+    else:
+        # PI Cover
+        pi_cover = [[] for _ in range(no_nodes)]
+        for level in range(len(level_list)):
+            for idx in level_list[level]:
+                if level == 0:
+                    pi_cover[idx].append(idx)
+                tmp_pi_cover = []
+                for pre_k in fanin_list[idx]:
+                    tmp_pi_cover += pi_cover[pre_k]
+                tmp_pi_cover = list(set(tmp_pi_cover))
+                pi_cover[idx] += tmp_pi_cover
+        
+        # Sample TT pairs 
+        sample_idx = []
+        tt_sim_list = []
+        for node_a in range(0, no_nodes):
+            for node_b in range(node_a+1, no_nodes):
+                if pi_cover[node_a] != pi_cover[node_b]:
+                    continue
+                if node_a in fanin_list[node_b] or node_b in fanin_list[node_a]:
+                    continue
+                sample_idx.append([node_a, node_b])
+                tt_sim_list.append([-1])
             
     # Write graph to file
     f = open(graph_filepath, 'w')

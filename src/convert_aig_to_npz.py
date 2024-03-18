@@ -4,7 +4,8 @@ import aiger
 
 aig_folder = '/Users/zhengyuanshi/studio/dataset/EPFL/aig'
 aig_name_list = [
-    'multiplier', 'sqrt', 'max', 'arbiter', 'voter'
+    # 'sqrt', 'max', 'arbiter', 'voter'
+    'bar', 'i2c', 'sin', 'voter'
 ]
 npz_output_path = 'data/large/graphs.npz'
 

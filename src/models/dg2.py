@@ -38,8 +38,8 @@ class DeepGate2(dg.Model):
         edge_index = G.edge_index
 
         node_state = torch.cat([hs, hf], dim=-1)
-        and_mask = G.gate == 1
-        not_mask = G.gate == 2
+        and_mask = (G.gate == 1).squeeze(1)
+        not_mask = (G.gate == 2).squeeze(1)
 
         for _ in range(self.num_rounds):
             for level in range(1, num_layers_f):

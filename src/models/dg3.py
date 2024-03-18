@@ -58,6 +58,31 @@ class DeepGate3(nn.Module):
                         nn.ReLU(),
                         nn.LayerNorm(self.hidden*4),
                         nn.Linear(self.hidden*4, self.max_tt_len))
+    
+    def load(self, path):
+        checkpoint = torch.load(path, map_location=lambda storage, loc: storage)
+        state_dict_ = checkpoint['state_dict']
+        state_dict = {}
+        for k in state_dict_:
+            if k.startswith('module') and not k.startswith('module_list'):
+                state_dict[k[7:]] = state_dict_[k]
+            else:
+                state_dict[k] = state_dict_[k]
+        model_state_dict = self.state_dict()
+        
+        for k in state_dict:
+            if k in model_state_dict:
+                if state_dict[k].shape != model_state_dict[k].shape:
+                    print('Skip loading parameter {}, required shape{}, loaded shape{}.'.format(
+                        k, model_state_dict[k].shape, state_dict[k].shape))
+                    state_dict[k] = model_state_dict[k]
+            else:
+                print('Drop parameter {}.'.format(k))
+        for k in model_state_dict:
+            if not (k in state_dict):
+                print('No param {}.'.format(k))
+                state_dict[k] = model_state_dict[k]
+        self.load_state_dict(state_dict, strict=False)
         
         # Prediction 
         self.readout_level = MLP(
@@ -86,7 +111,6 @@ class DeepGate3(nn.Module):
 
 
     def forward(self, g):
-        bs = g.batch.max().item() + 1
         hs, hf = self.tokenizer(g)
         hf = hf.detach()
         hs = hs.detach()
