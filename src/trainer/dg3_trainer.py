@@ -448,7 +448,7 @@ class Trainer():
                         output_log += ' | connect acc: {:.4f}'.format(acc)
                         print(output_log)
                 print(f'overall hamming distance:{torch.mean(torch.tensor(hamming_list))}')
-                print(f'overall prob loss:{torch.mean(torch.tensor(lprob))}')
+                print(f'overall probability loss:{torch.mean(torch.tensor(lprob))}')
                 print(f'overall connect acc:{torch.mean(torch.tensor(acc_list))}')
                 print(f'overall level loss:{torch.mean(torch.tensor(llevel))}')
                 print(f'overall hop num loss:{torch.mean(torch.tensor(lnum))}')

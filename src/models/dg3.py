@@ -27,6 +27,7 @@ class DeepGate3(nn.Module):
         self.args = args
         self.max_tt_len = 64
         self.hidden = 128
+        self.max_path_len = 256
         self.tf_arch = args.tf_arch
         # Tokenizer
         self.tokenizer = DeepGate2()
@@ -34,12 +35,14 @@ class DeepGate3(nn.Module):
 
         #special token
         self.cls_token = nn.Parameter(torch.randn([self.hidden,]))
+        self.cls_path_token = nn.Parameter(torch.randn([self.hidden,]))
         self.dc_token = nn.Parameter(torch.randn([self.hidden,]))
         self.zero_token = nn.Parameter(torch.randn([self.hidden,]))
         self.one_token = nn.Parameter(torch.randn([self.hidden,]))
         self.pad_token = torch.zeros([self.hidden,]) # dont learn
         self.pool_max_length = 10
         self.PositionalEmbedding = nn.Embedding(10,self.hidden)
+        self.Path_Pos = nn.Embedding(self.max_path_len,self.hidden)
         
         # Transformer 
         if args.tf_arch != 'baseline':
@@ -47,6 +50,18 @@ class DeepGate3(nn.Module):
         
         # Prediction 
         self.readout_prob = MLP(
+            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
+            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
+        )
+        self.readout_gate1 = MLP(
+            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
+            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
+        )
+        self.readout_gate2 = MLP(
+            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
+            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
+        )
+        self.readout_path_len = MLP(
             dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
             num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
         )
@@ -58,6 +73,24 @@ class DeepGate3(nn.Module):
                         nn.ReLU(),
                         nn.LayerNorm(self.hidden*4),
                         nn.Linear(self.hidden*4, self.max_tt_len))
+        self.pathformer = nn.TransformerEncoder(pool_layer, num_layers=3)
+
+        # Prediction 
+        self.readout_level = MLP(
+            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
+            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
+        )
+        self.readout_num = MLP(
+            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
+            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
+        )
+        self.connect_head = MLP(
+            dim_in=self.args.token_emb*2, dim_hidden=self.args.mlp_hidden, dim_pred=3, 
+            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
+        )
+        
+        # function & structure head
+
     
     def load(self, path):
         checkpoint = torch.load(path, map_location=lambda storage, loc: storage)
@@ -84,30 +117,7 @@ class DeepGate3(nn.Module):
                 state_dict[k] = model_state_dict[k]
         self.load_state_dict(state_dict, strict=False)
         
-        # Prediction 
-        self.readout_level = MLP(
-            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
-            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        )
-        self.readout_num = MLP(
-            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
-            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        )
-        self.connect_head = MLP(
-            dim_in=self.args.token_emb*2, dim_hidden=self.args.mlp_hidden, dim_pred=3, 
-            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        )
         
-        # function & structure head
-        self.function_head = MLP(
-            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=self.args.token_emb, 
-            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        )
-        self.structure_head = MLP(
-            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=self.args.token_emb, 
-            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        )
-
 
 
     def forward(self, g):
@@ -117,12 +127,13 @@ class DeepGate3(nn.Module):
         # Refine-Transformer 
         if self.tf_arch != 'baseline':
 
-            h = self.transformer(g, hs, hf)
+            hf_tf, hs_tf = self.transformer(g, hs, hf)
 
             #function
-            hf = hf + self.function_head(h)
+            hf = hf + hf_tf
             #structure
-            hs = hs + self.structure_head(h)
+            hs = hs + hs_tf
+            # hs = hs + self.structure_head(h)
 
         #===================function======================
         #gate-level pretrain task : predict global probability
@@ -170,6 +181,7 @@ class DeepGate3(nn.Module):
         hop_hf = self.tf_encoder(hop_hf,src_key_padding_mask = masks.float())
         hop_hf = hop_hf[:,0]
         hop_tt = self.hop_head(hop_hf)
+
         #===================strucutre======================
         #gate-level pretrain task : predict global level
         pred_level = self.readout_level(hs)
@@ -179,6 +191,29 @@ class DeepGate3(nn.Module):
         gates = hs[g.connect_pair_index]
         gates = gates.permute(1,2,0).reshape(-1,self.hidden*2)
         pred_connect = self.connect_head(gates)
+
+        #path-level pretrain task : on-path prediction, path num prediction
+        #get path
+        path_hs = []
+        gate_1 = []
+        gate_2 = []
+        for i in range(g.paths.shape[0]):
+            path_idx = g.paths[i][:g.paths_len[i]]
+            gate_1.append((g.gate[path_idx]==1).sum())
+            gate_2.append((g.gate[path_idx]==2).sum())
+            path_emb = hs[path_idx]
+            path_emb = torch.cat([self.cls_path_token.unsqueeze(0), path_emb,torch.zeros([self.max_path_len-1-path_emb.shape[0],self.hidden])],dim=0)
+            path_hs.append(path_emb)
+        path_hs = torch.stack(path_hs)
+        gate_1 = torch.tensor(gate_1)
+        gate_2 = torch.tensor(gate_2)
+        pos = torch.arange(path_hs.shape[1]).unsqueeze(0).repeat(path_hs.shape[0],1).to(hs.device)
+        path_hs = path_hs + self.Path_Pos(pos)
+        path_hs = self.pathformer(path_hs)
+        #on-path prediction
+
+        #path num prediction
+
 
         #graph-level pretrain task : predict truth table
         hop_hs = []

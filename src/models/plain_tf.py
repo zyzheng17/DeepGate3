@@ -39,7 +39,8 @@ class Plain_Transformer(nn.Sequential):
         self.max_length = 512
         TransformerEncoderLayer = nn.TransformerEncoderLayer(d_model=self.hidden, nhead=attn_heads, dropout=dropout, batch_first=True)
         self.transformer_blocks = nn.TransformerEncoder(TransformerEncoderLayer, num_layers=n_layers)
-
+        self.function_head = nn.TransformerEncoder(TransformerEncoderLayer, num_layers=3)
+        self.struture_head = nn.TransformerEncoder(TransformerEncoderLayer, num_layers=3)
         # self.transformer_blocks = nn.ModuleList(
         #     [TransformerBlock(hidden, attn_heads, hidden * 4, dropout) for _ in range(n_layers)])
         self.cls_head = nn.Sequential(nn.Linear(hidden*2, hidden*4),
@@ -75,10 +76,13 @@ class Plain_Transformer(nn.Sequential):
 
         padding_mask = torch.where(padding_mask==1, True, False)# Flase = compute attention, True = mask # inverse to fit nn.transformer
                 
-        mask_hop_states = self.transformer_blocks(mask_hop_states, src_key_padding_mask=padding_mask, mask = corr_m)
+        h = self.transformer_blocks(mask_hop_states, src_key_padding_mask=padding_mask, mask = corr_m)
+        hf_tf = self.function_head(h) 
+        hs_tf = self.struture_head(h)
 
         for i in range(bs):
             batch_idx = g.forward_index[g.batch==i]
-            hf[batch_idx] = mask_hop_states[i,:batch_idx.shape[0]]
+            hf[batch_idx] = hf_tf[i,:batch_idx.shape[0]]
+            hs[batch_idx] = hs_tf[i,:batch_idx.shape[0]]
         
-        return hf
+        return hf, hs
