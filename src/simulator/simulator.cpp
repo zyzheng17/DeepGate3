@@ -126,24 +126,38 @@ int main(int argc, char **argv)
         printf("%d %f\n", k, prob_list[k]);
     }
 
-    // TT Pairs
-    int no_pairs; 
-    scanf("%d", &no_pairs);
-    rep (pair_idx, no_pairs) {
-        int gate1, gate2; 
-        scanf("%d %d", &gate1, &gate2);
-        if (std::abs(prob_list[gate1] - prob_list[gate2]) > 0.1) {
-            printf("%d %d %f\n", gate1, gate2, -1);
-            continue;
+    // Sample node pair 
+    vector<long> pi_cover_hash_list(n);
+    rep(k, n) {
+        scanf("%ld", &pi_cover_hash_list[k]);
+    }
+    for (int i = 0; i < n; i++) {
+        for (int j = i+1; j < n; j++) {
+            // 1. Must have the same PI cover hash
+            if (pi_cover_hash_list[i] != pi_cover_hash_list[j])
+                continue;
+            // 2. Must have the similar probability
+            if (std::abs(prob_list[i] - prob_list[j]) > 0.1)
+                continue;
+            // 3. They are not connected
+            auto it1 = std::find(fanin_list[i].begin(), fanin_list[i].end(), j);
+            if (it1 != fanin_list[i].end())
+                continue;
+            auto it2 = std::find(fanin_list[j].begin(), fanin_list[j].end(), i);
+            if (it2 != fanin_list[j].end())
+                continue;
+            // 4. Extreme Case
+            int cnt = 0;
+            int all_bits = 0;
+            rep(p, full_states[i].size()) {
+                cnt += countOnesInBinary(~(full_states[i][p] ^ full_states[j][p]), STATE_WIDTH);
+                all_bits += STATE_WIDTH; 
+            }
+            float tt_sim = 1 - (float)cnt / all_bits;
+            if (tt_sim > 0.2 and tt_sim < 0.8)
+                continue;
+            printf("%d %d %f\n", i, j, tt_sim);
         }
-        int cnt = 0;
-        int all_bits = 0;
-        rep(p, full_states[gate1].size()) {
-            cnt += countOnesInBinary(~(full_states[gate1][p] ^ full_states[gate2][p]), STATE_WIDTH);
-            all_bits += STATE_WIDTH; 
-        }
-        float tt_sim = 1 - (float)cnt / all_bits;
-        printf("%d %d %f\n", gate1, gate2, tt_sim);
     }
 
 }

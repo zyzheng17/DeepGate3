@@ -3,7 +3,7 @@
 EXP_ID=test_hop
 ARCH=hop
 
-python3 ./src/test_dg3.py \
+python ./src/test_dg3.py \
  --exp_id $EXP_ID \
  --gpus -1 --batch_size 1 \
  --data_dir ./data/large --enable_large_circuit \
