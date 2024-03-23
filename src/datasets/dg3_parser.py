@@ -167,20 +167,21 @@ class NpzParser():
                 graph.tt_pair_index = tt_pair_index
                 graph.tt_sim = tt_sim
                 
-                if self.args.sample_path_data:
+                # if self.args.sample_path_data:
                     # Sample paths
-                    sample_paths, sample_paths_len = get_sample_paths(graph, no_path=1000, max_path_len=256, path_hop_k=self.args.k_hop)
-                    graph.paths = torch.tensor(sample_paths, dtype=torch.long)
-                    graph.paths_len = torch.tensor(sample_paths_len, dtype=torch.long)
-                if not self.args.sample_path_data and not self.args.no_cone:
+                sample_paths, sample_paths_len = get_sample_paths(graph, no_path=1000, max_path_len=256, path_hop_k=self.args.k_hop)
+                graph.paths = torch.tensor(sample_paths, dtype=torch.long)
+                graph.paths_len = torch.tensor(sample_paths_len, dtype=torch.long)
+                # if not self.args.sample_path_data and not self.args.no_cone:
                     # Generate fanin fanout cone area keys 
-                    fanin_fanout_cone = get_fanin_fanout_cone(graph)
-                    graph.fanin_fanout_cone = fanin_fanout_cone
+                fanin_fanout_cone = get_fanin_fanout_cone(graph)
+                graph.fanin_fanout_cone = fanin_fanout_cone
+
                 if not self.args.no_stru:
-                    if not self.args.sample_path_data and not self.args.no_cone:
-                        cone = graph.fanin_fanout_cone
-                    else:
-                        cone = None
+                    # if not self.args.sample_path_data and not self.args.no_cone:
+                    cone = graph.fanin_fanout_cone
+                    # else:
+                    #     cone = None
                     connect_pair_index, connect_label = get_connection_pairs(
                         x_data, edge_index, forward_level, 
                         no_src=int(len(x_data)*0.2), no_dst=int(len(x_data)*0.2),

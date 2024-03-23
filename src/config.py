@@ -15,7 +15,7 @@ def get_parse_args():
     parser.add_argument('--circuit_path', default='/uac/gds/zyzheng23/projects/DeepGate3-Transformer/data/train_dg3/graphs.npz')
     parser.add_argument('--enable_large_circuit', action='store_true')
     parser.add_argument('--hop_ratio', default=0.15, type=float)
-    parser.add_argument('--k_hop', default=4, type=int)
+    parser.add_argument('--k_hop', default=0, type=int)
     parser.add_argument('--max_hop_pi', default=6, type=int)
     parser.add_argument('--sample_path_data',default=False, action='store_true')
     parser.add_argument('--no_cone', action='store_true')
@@ -43,7 +43,7 @@ def get_parse_args():
     parser.add_argument('--en_distrubuted', action='store_true')
     parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--resume', action='store_true')
-    parser.add_argument('--epoch', default=200, type=int)
+    parser.add_argument('--epoch', default=300, type=int)
     parser.add_argument('--stage2_steps', default=50, type=int)
     parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--loss', default='l2', type=str)
@@ -60,12 +60,12 @@ def get_parse_args():
     args.gpus_str = args.gpus
     args.gpus = [int(gpu) for gpu in args.gpus.split(',')]
     args.gpus = [i for i in range(len(args.gpus))] if args.gpus[0] >=0 else [-1]
-    if len(args.gpus) > 1 and torch.cuda.is_available():
-        args.en_distrubuted = True
-    args.device = torch.device('cuda:1' if args.gpus[0] >= 0 and torch.cuda.is_available() else 'cpu')
+    # if len(args.gpus) > 1 and torch.cuda.is_available():
+    #     args.en_distrubuted = True
+    # args.device = torch.device('cuda:1' if args.gpus[0] >= 0 and torch.cuda.is_available() else 'cpu')
 
 
-    # args.en_distrubuted = False
-    # args.device = torch.device('cuda:3')
+    args.en_distrubuted = False
+    args.device = torch.device('cuda:1')
     
     return args
