@@ -157,7 +157,7 @@ def prepare_dg2_labels(graph, no_patterns=10000):
     tt_sim = torch.tensor(tt_sim_list)
     return prob, tt_index, tt_sim
 
-def get_sample_paths(g, no_path=1000, max_path_len=128, path_hop_k=0):
+def get_sample_paths_hop(g, no_path=1000, max_path_len=128, path_hop_k=0):
     # Parse graph 
     PI_index = g['forward_index'][(g['forward_level'] == 0) & (g['backward_level'] != 0)]
     PO_index = g['forward_index'][(g['forward_level'] != 0) & (g['backward_level'] == 0)]
@@ -207,6 +207,64 @@ def get_sample_paths(g, no_path=1000, max_path_len=128, path_hop_k=0):
         path_list.append(path[:max_path_len])
     
     return path_list, path_len_list
+
+def get_sample_paths(g, no_path=1000, max_path_len=128):
+    # Parse graph 
+    PI_index = g['forward_index'][(g['forward_level'] == 0) & (g['backward_level'] != 0)]
+    PO_index = g['forward_index'][(g['forward_level'] != 0) & (g['backward_level'] == 0)]
+    no_nodes = len(g['forward_index'])
+    level_list = [[] for I in range(g['forward_level'].max()+1)]
+    fanin_list = [[] for _ in range(no_nodes)]
+    fanout_list = [[] for _ in range(no_nodes)]
+    for edge in g['edge_index'].t():
+        fanin_list[edge[1].item()].append(edge[0].item())
+        fanout_list[edge[0].item()].append(edge[1].item())
+    for k, idx in enumerate(g['forward_index']):
+        level_list[g['forward_level'][k].item()].append(k)
+        
+    # Sample Paths
+    path_list = []
+    path_len_list = []
+    path_hash = []
+    no_and_list = []
+    no_not_list = []
+    for _ in range(no_path):
+        # Sample path
+        path = []
+        node_idx = random.choice(PI_index).item()
+        path.append(node_idx)
+        while len(fanout_list[node_idx]) > 0 and len(path) < max_path_len:
+            node_idx = random.choice(fanout_list[node_idx])
+            path.append(node_idx)
+        hash_val = hash_arr(path)
+        if hash_val in path_hash:
+            continue
+        else:
+            path_hash.append(hash_val)
+        
+        # AND / NOT 
+        no_and = 0
+        no_not = 0
+        for node_idx in path:
+            if g['gate'][node_idx] == 1:
+                no_and += 1
+            elif g['gate'][node_idx] == 2:
+                no_not += 1 
+        
+        # Path length
+        if len(path) < max_path_len:
+            path_len_list.append(len(path))
+        else:
+            path_len_list.append(max_path_len)
+        while len(path) < max_path_len:
+            path.append(-1)
+        path = path[:max_path_len]
+              
+        no_and_list.append(no_and) 
+        no_not_list.append(no_not)
+        path_list.append(path)
+    
+    return path_list, path_len_list, no_and_list, no_not_list
 
 def get_fanin_fanout_cone(g, max_no_nodes=512): 
     # Parse graph 
@@ -358,15 +416,15 @@ def get_connection_pairs(x_data, edge_index, forward_level, no_src=512, no_dst=5
     no_nodes = len(x_data)
     fanin_list = [[] for _ in range(no_nodes)]
     fanout_list = [[] for _ in range(no_nodes)]
-    for edge in edge_index:
-        fanin_list[edge[1]].append(edge[0])
-        fanout_list[edge[0]].append(edge[1])
+    for edge in edge_index.T:
+        fanin_list[edge[1].item()].append(edge[0].item())
+        fanout_list[edge[0].item()].append(edge[1].item())
     
     # Sample src 
     connect_pair_index = []
     connect_label = []
-    for src_k in range(no_src):
-        src = random.randint(0, no_nodes-1)
+    src_list = random.sample(range(no_nodes), no_src)
+    for src in src_list:
         # Find all connection 
         fanin_cone = []
         fanout_cone = []
@@ -394,17 +452,14 @@ def get_connection_pairs(x_data, edge_index, forward_level, no_src=512, no_dst=5
                     if post_k not in fanout_cone:
                         q.append(post_k)
         # Sample dst
-        dst_k = 0
-        while dst_k < no_dst:
-            dst_k += 1
-            dst = random.randint(0, no_nodes-1)
-            while dst == src:
-                dst = random.randint(0, no_nodes-1)
-            # Check connection 
+        dst_list = random.sample(range(no_nodes), no_dst)
+        for dst in dst_list:
+            if dst == src:
+                continue
             pair = [src, dst]
             if pair in connect_pair_index:
                 continue
-            connect_pair_index.append([src, dst])
+            connect_pair_index.append(pair)
             if forward_level[dst] < forward_level[src] and dst in fanin_cone:     # in fanin cone
                 connect_label.append(1)
             elif forward_level[dst] > forward_level[src] and dst in fanout_cone:    # in fanout cone
@@ -414,15 +469,15 @@ def get_connection_pairs(x_data, edge_index, forward_level, no_src=512, no_dst=5
     
     connect_pair_index = torch.tensor(connect_pair_index, dtype=torch.long)
     connect_label = torch.tensor(connect_label, dtype=torch.long)
-        
     
     return connect_pair_index, connect_label
 
-def get_hop_stru_sim(hop_nodes_list, hop_po_list, edge_index, no_pairs):
+def get_hop_pair_labels(hop_nodes_list, hop_tt, edge_index, no_pairs):
     no_hops = len(hop_nodes_list)
     hop_pair_index = np.random.randint(0, no_hops, [no_pairs, 2])
     hop_ged = []
     hop_node_pair = []
+    hop_tt_sim = []
     for pair in hop_pair_index:
         if pair[0] == pair[1]:
             ged = 0
@@ -434,11 +489,14 @@ def get_hop_stru_sim(hop_nodes_list, hop_po_list, edge_index, no_pairs):
                     g1.add_edge(edge[0].item(), edge[1].item())
                 if edge[0] in hop_nodes_list[pair[1]] and edge[1] in hop_nodes_list[pair[1]]:
                     g2.add_edge(edge[0].item(), edge[1].item())
-            ged = nx.graph_edit_distance(g1, g2, timeout=0.5)
+            ged = nx.graph_edit_distance(g1, g2, timeout=0.1)
         
-        hop_node_pair.append([hop_po_list[pair[0]], hop_po_list[pair[1]]])
+        hop_node_pair.append([pair[0], pair[1]])
         hop_ged.append(ged)
+        tt_sim = (hop_tt[pair[0]] == hop_tt[pair[1]]).sum() * 1.0 / len(hop_tt[pair[0]])
+        hop_tt_sim.append(tt_sim.item())
+        
     hop_node_pair = torch.tensor(hop_node_pair, dtype=torch.long)
     hop_ged = torch.tensor(hop_ged, dtype=torch.float)
-    return hop_node_pair, hop_ged
+    return hop_node_pair, hop_ged, hop_tt_sim
     

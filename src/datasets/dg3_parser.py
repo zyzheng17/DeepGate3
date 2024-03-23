@@ -17,27 +17,36 @@ from utils.dataset_utils import parse_pyg_dg3
 
 from utils.circuit_utils import complete_simulation, prepare_dg2_labels_cpp, \
     get_fanin_fanout_cone, get_sample_paths, remove_unconnected, \
-    get_connection_pairs, get_hop_stru_sim
+    get_connection_pairs, get_hop_pair_labels
+    
+NO_NODE_PATH = 10
+NO_NODE_HOP = 10
 
 class OrderedData(Data):
     def __init__(self): 
         super().__init__()
     
     def __inc__(self, key, value, *args, **kwargs):
-        if 'index' in key or 'face' in key:
+        if 'hop_forward_index' in key:
+            return value.shape[0]
+        elif 'path_forward_index' in key:
+            return value.shape[0]
+        elif key == 'ninp_node_index' or key == 'ninh_node_index':
+            return self.num_nodes
+        elif key == 'ninp_path_index':
+            return args[0]['path_forward_index'].shape[0]
+        elif key == 'ninh_hop_index':
+            return args[0]['hop_forward_index'].shape[0]
+        elif 'index' in key or 'face' in key:
             return self.num_nodes
         elif key == 'hop_pi' or key == 'hop_po' or key == 'hop_nodes': 
             return self.num_nodes
-        elif key == 'hop_pair_index':
+        elif key == 'hop_pair_index' or key == 'hop_forward_index':
+            return args[0]['hop_forward_index'].shape[0]
+        elif key == 'path_forward_index':
+            return args[0]['path_forward_index'].shape[0]
+        elif key == 'paths' or key == 'hop_nodes':
             return self.num_nodes
-        elif key == 'paths':
-            return self.num_nodes
-            inc_val = torch.zeros(value.shape)
-            for i in range(inc_val.shape[0]):
-                for j in range(inc_val.shape[1]):
-                    if value[i, j] != -1:
-                        inc_val[i, j] = self.num_nodes
-            return inc_val
         else:
             return 0
 
@@ -93,14 +102,8 @@ class NpzParser():
                 name = 'inmemory_debug'
             else:
                 name = 'inmemory'
-            if self.args.enable_large_circuit:
-                name += '_large'
-            if self.args.sample_path_data:
-                name += '_path_hop_{:}'.format(self.args.k_hop)
-            if self.args.no_cone:
-                name += '_nocone'
-            if self.args.no_stru:
-                name += '_nostru'
+            if self.args.default_dataset:
+                name += '_default'
             inmemory_path = osp.join(self.root, name)
             print('Inmemory Dataset Path: ', inmemory_path)
             return inmemory_path
@@ -136,7 +139,7 @@ class NpzParser():
                 x_one_hot = dg.construct_node_feature(x_data, 3)
                 edge_index = torch.tensor(edge_index, dtype=torch.long)
                 
-                if not self.args.enable_large_circuit and x_data.shape[0] > 512:
+                if not self.args.default_dataset and x_data.shape[0] > 512:
                     continue
                 if len(edge_index) == 0:
                     continue
@@ -154,9 +157,10 @@ class NpzParser():
                 graph.backward_index = backward_index
                 graph.forward_level = forward_level
                 graph.backward_level = backward_level
-                graph.no_gates = torch.tensor(x_data.shape[0], dtype=torch.long)
                 
+                ################################################
                 # DeepGate2 (node-level) labels
+                ################################################
                 prob, tt_pair_index, tt_sim = prepare_dg2_labels_cpp(self.args, graph, 15000)
                 assert max(prob).item() <= 1.0 and min(prob).item() >= 0.0
                 if len(tt_pair_index) == 0:
@@ -167,29 +171,52 @@ class NpzParser():
                 graph.tt_pair_index = tt_pair_index
                 graph.tt_sim = tt_sim
                 
-                # if self.args.sample_path_data:
-                    # Sample paths
-                sample_paths, sample_paths_len = get_sample_paths(graph, no_path=1000, max_path_len=256, path_hop_k=0)
+                if self.args.default_dataset:
+                    cone = None
+                else:
+                    fanin_fanout_cone = get_fanin_fanout_cone(graph)
+                    graph.fanin_fanout_cone = fanin_fanout_cone
+                    cone = graph.fanin_fanout_cone
+                connect_pair_index, connect_label = get_connection_pairs(
+                    x_data, edge_index, forward_level, 
+                    no_src=int(len(x_data)*0.2), no_dst=int(len(x_data)*0.2),
+                    cone=cone
+                )
+                graph.connect_pair_index = connect_pair_index.T
+                graph.connect_label = connect_label
+                
+                ################################################
+                # Path-level labels    
+                ################################################             
+                sample_paths, sample_paths_len, sample_paths_no_and, sample_paths_no_not = get_sample_paths(graph, no_path=1000, max_path_len=256)
+                graph.path_forward_index = torch.tensor(range(len(sample_paths)), dtype=torch.long)
                 graph.paths = torch.tensor(sample_paths, dtype=torch.long)
                 graph.paths_len = torch.tensor(sample_paths_len, dtype=torch.long)
-                # if not self.args.sample_path_data and not self.args.no_cone:
-                    # Generate fanin fanout cone area keys 
-                fanin_fanout_cone = get_fanin_fanout_cone(graph)
-                graph.fanin_fanout_cone = fanin_fanout_cone
-
-                if not self.args.no_stru:
-                    # if not self.args.sample_path_data and not self.args.no_cone:
-                    cone = graph.fanin_fanout_cone
-                    # else:
-                    #     cone = None
-                    connect_pair_index, connect_label = get_connection_pairs(
-                        x_data, edge_index, forward_level, 
-                        no_src=int(len(x_data)*0.2), no_dst=int(len(x_data)*0.2),
-                        cone=cone
-                    )
-                    graph.connect_pair_index = connect_pair_index.T
-                    graph.connect_label = connect_label
-                    
+                graph.paths_no_and = torch.tensor(sample_paths_no_and, dtype=torch.long)
+                graph.paths_no_not = torch.tensor(sample_paths_no_not, dtype=torch.long)
+                # Sample node in path 
+                node_path_pair_index = []
+                node_path_labels = []
+                for path_idx, sample_path in enumerate(sample_paths):
+                    path = sample_path[:sample_paths_len[path_idx]]
+                    node_in_path = np.random.choice(path, NO_NODE_PATH)
+                    node_in_path = [[x, path_idx] for x in node_in_path]
+                    node_out_path = [x for x in range(len(x_data)) if x not in path]
+                    node_out_path = np.random.choice(node_out_path, NO_NODE_PATH)
+                    node_out_path = [[x, path_idx] for x in node_out_path]
+                    node_path_pair_index += node_in_path + node_out_path
+                    node_path_labels += [1] * NO_NODE_PATH + [0] * NO_NODE_PATH
+                node_path_pair_index = torch.tensor(node_path_pair_index, dtype=torch.long)
+                ninp_node_index = node_path_pair_index[:, 0]
+                ninp_path_index = node_path_pair_index[:, 1]
+                graph.ninp_node_index = ninp_node_index
+                graph.ninp_path_index = ninp_path_index
+                node_path_labels = torch.tensor(node_path_labels, dtype=torch.long)
+                graph.ninp_labels = node_path_labels
+                
+                ################################################
+                # Hop-level labels    
+                ################################################  
                 # Random select hops 
                 rand_idx_list = list(range(len(x_data)))
                 random.shuffle(rand_idx_list)
@@ -203,7 +230,8 @@ class NpzParser():
                 all_hop_nodes = torch.zeros((0, max_hop_nodes_cnt), dtype=torch.long)
                 all_hop_nodes_stats = torch.zeros((0, max_hop_nodes_cnt), dtype=torch.long)
                 all_tt = []
-                all_no_hops = []
+                all_hop_nodes_cnt = []
+                all_hop_level_cnt = []
                 for idx in rand_idx_list:
                     last_target_idx = copy.deepcopy([idx])
                     curr_target_idx = []
@@ -258,7 +286,8 @@ class NpzParser():
                     all_hop_nodes = torch.cat([all_hop_nodes, hop_nodes.view(1, -1)], dim=0)
                     all_hop_nodes_stats = torch.cat([all_hop_nodes_stats, hop_nodes_stats.view(1, -1)], dim=0)
                     all_tt.append(hop_tt)
-                    all_no_hops.append(no_hops)
+                    all_hop_nodes_cnt.append(len(hop_nodes))
+                    all_hop_level_cnt.append(no_hops)
 
                 graph.hop_pi = all_hop_pi
                 graph.hop_po = all_hop_po
@@ -266,18 +295,42 @@ class NpzParser():
                 graph.hop_nodes = all_hop_nodes
                 graph.hop_nodes_stats = all_hop_nodes_stats
                 graph.hop_tt = torch.tensor(all_tt, dtype=torch.long)
-                graph.no_hops = torch.tensor(all_no_hops, dtype=torch.long)
+                graph.hop_nds = torch.tensor(all_hop_nodes_cnt, dtype=torch.long)
+                graph.hop_levs = torch.tensor(all_hop_level_cnt, dtype=torch.long)
+                graph.hop_forward_index = torch.tensor(range(len(all_hop_nodes)), dtype=torch.long)
                 
-                if not self.args.no_stru:
-                    hop_pair_index, hop_ged = get_hop_stru_sim(all_hop_nodes, all_hop_po, edge_index, no_pairs=int(len(all_hop_nodes) * 0.1))
-                    no_pairs = len(hop_pair_index)
-                    graph.hop_pair_index = hop_pair_index.T.reshape(2, no_pairs)
-                    graph.hop_ged = hop_ged
-                    
+                hop_pair_index, hop_pair_ged, hop_pair_tt_sim = get_hop_pair_labels(all_hop_nodes, graph.hop_tt, edge_index, no_pairs=int(len(all_hop_nodes) * 0.1))
+                no_pairs = len(hop_pair_index)
+                if no_pairs == 0:
+                    continue
+                graph.hop_pair_index = hop_pair_index.T.reshape(2, no_pairs)
+                graph.hop_ged = hop_pair_ged
+                graph.hop_tt_sim = hop_pair_tt_sim
+                
+                # Sample node in hop 
+                node_hop_pair_index = []
+                node_hop_labels = []
+                for hop_idx, sample_hop in enumerate(all_hop_nodes):
+                    hop = sample_hop[sample_hop != -1].tolist()
+                    node_in_hop = np.random.choice(hop, NO_NODE_HOP)
+                    node_in_hop = [[x, hop_idx] for x in node_in_hop]
+                    node_out_hop = [x for x in range(len(x_data)) if x not in hop]
+                    node_out_hop = np.random.choice(node_out_hop, NO_NODE_HOP)
+                    node_out_hop = [[x, hop_idx] for x in node_out_hop]
+                    node_hop_pair_index += node_in_hop + node_out_hop
+                    node_hop_labels += [1] * NO_NODE_HOP + [0] * NO_NODE_HOP
+                node_hop_pair_index = torch.tensor(node_hop_pair_index, dtype=torch.long)
+                node_hop_labels = torch.tensor(node_hop_labels, dtype=torch.long)
+                ninh_node_index = node_hop_pair_index[:, 0]
+                ninh_hop_index = node_hop_pair_index[:, 1]
+                graph.ninh_node_index = ninh_node_index
+                graph.ninh_hop_index = ninh_hop_index
+                graph.ninh_labels = node_hop_labels
+                
                 data_list.append(graph)
                 tot_time = time.time() - start_time
                 
-                if self.debug and cir_idx > 100:
+                if self.debug and cir_idx > 20:
                     break
 
             data, slices = self.collate(data_list)

@@ -6,4 +6,3 @@ python3 ./src/train_dg3.py \
  --tf_arch path \
  --batch_size 8 \
  --w_prob 1.0 --w_tt_sim 0 --w_tt_cls 1.0 --w_g_sim 0 \
- --sample_path_data --enable_large_circuit 
