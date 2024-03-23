@@ -134,7 +134,7 @@ def prepare_dg2_labels(graph, no_patterns=10000):
             tmp_pi_cover = list(set(tmp_pi_cover))
             pi_cover[idx] += tmp_pi_cover
     # Sample 
-    sample_idx = []
+    sample_index = []
     tt_sim_list = []
     
     for node_a in range(0, len(prob)):
@@ -150,10 +150,10 @@ def prepare_dg2_labels(graph, no_patterns=10000):
                 continue
             # if tt_dis == 0 or tt_dis == 1:
             #     continue
-            sample_idx.append([node_a, node_b])
+            sample_index.append([node_a, node_b])
             tt_sim_list.append(1-tt_dis)
     
-    tt_index = torch.tensor(sample_idx)
+    tt_index = torch.tensor(sample_index)
     tt_sim = torch.tensor(tt_sim_list)
     return prob, tt_index, tt_sim
 
@@ -300,33 +300,20 @@ def prepare_dg2_labels_cpp(args, g, no_patterns=15000,
     for k, idx in enumerate(g['forward_index']):
         level_list[g['forward_level'][k].item()].append(k)
     
-    if args.test:
-        sample_idx = torch.zeros([0, 2], dtype=torch.long)
-        tt_sim = torch.zeros([0], dtype=torch.float)
-    else:
-        # PI Cover
-        pi_cover = [[] for _ in range(no_nodes)]
-        for level in range(len(level_list)):
-            for idx in level_list[level]:
-                if level == 0:
-                    pi_cover[idx].append(idx)
-                tmp_pi_cover = []
-                for pre_k in fanin_list[idx]:
-                    tmp_pi_cover += pi_cover[pre_k]
-                tmp_pi_cover = list(set(tmp_pi_cover))
-                pi_cover[idx] += tmp_pi_cover
-        
-        # Sample TT pairs 
-        sample_idx = []
-        tt_sim_list = []
-        for node_a in range(0, no_nodes):
-            for node_b in range(node_a+1, no_nodes):
-                if pi_cover[node_a] != pi_cover[node_b]:
-                    continue
-                if node_a in fanin_list[node_b] or node_b in fanin_list[node_a]:
-                    continue
-                sample_idx.append([node_a, node_b])
-                tt_sim_list.append([-1])
+    # PI Cover
+    pi_cover = [[] for _ in range(no_nodes)]
+    for level in range(len(level_list)):
+        for idx in level_list[level]:
+            if level == 0:
+                pi_cover[idx].append(idx)
+            tmp_pi_cover = []
+            for pre_k in fanin_list[idx]:
+                tmp_pi_cover += pi_cover[pre_k]
+            tmp_pi_cover = list(set(tmp_pi_cover))
+            pi_cover[idx] += tmp_pi_cover
+    pi_cover_hash_list = []
+    for idx in range(no_nodes):
+        pi_cover_hash_list.append(hash_arr(pi_cover[idx]))    
             
     # Write graph to file
     f = open(graph_filepath, 'w')
@@ -335,9 +322,8 @@ def prepare_dg2_labels_cpp(args, g, no_patterns=15000,
         f.write('{} {}\n'.format(g['gate'][idx].item(), g['forward_level'][idx].item()))
     for edge in g['edge_index'].t():
         f.write('{} {}\n'.format(edge[0].item(), edge[1].item()))
-    f.write('{}\n'.format(len(sample_idx)))
-    for pair in sample_idx:
-        f.write('{} {}\n'.format(pair[0], pair[1]))
+    for idx in range(no_nodes):
+        f.write('{}\n'.format(pi_cover_hash_list[idx]))
     f.close()
     
     # Simulation  
@@ -350,22 +336,14 @@ def prepare_dg2_labels_cpp(args, g, no_patterns=15000,
     for line in lines[:no_nodes]:
         arr = line.replace('\n', '').split(' ')
         prob[int(arr[0])] = float(arr[1])
-    for tt_pair_idx, pair in enumerate(sample_idx):
-        arr = lines[no_nodes + tt_pair_idx].replace('\n', '').split(' ')
-        assert pair[0] == int(arr[0]) and pair[1] == int(arr[1])
-        tt_sim_list[tt_pair_idx] = float(arr[2])
-    
     tt_index = []
     tt_sim = []
-    for pair_idx, pair in enumerate(sample_idx):
-        if tt_sim_list[pair_idx] < 0:
-            continue
-        if tt_sim_list[pair_idx] < 0.2 or tt_sim_list[pair_idx] > 0.8:
-            continue
-        tt_index.append(pair)
-        tt_sim.append(tt_sim_list[pair_idx])
-        tt_index.append([pair[1], pair[0]])
-        tt_sim.append(tt_sim_list[pair_idx])
+    for line in lines[no_nodes:]:
+        arr = line.replace('\n', '').split(' ')
+        assert len(arr) == 3
+        tt_index.append([int(arr[0]), int(arr[1])])
+        tt_sim.append(float(arr[2]))
+
     tt_index = torch.tensor(tt_index)
     tt_sim = torch.tensor(tt_sim)
     prob = torch.tensor(prob)
