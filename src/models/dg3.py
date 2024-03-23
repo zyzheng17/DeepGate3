@@ -194,22 +194,22 @@ class DeepGate3(nn.Module):
 
         #path-level pretrain task : on-path prediction, path num prediction
         #get path
-        path_hs = []
-        gate_1 = []
-        gate_2 = []
-        for i in range(g.paths.shape[0]):
-            path_idx = g.paths[i][:g.paths_len[i]]
-            gate_1.append((g.gate[path_idx]==1).sum())
-            gate_2.append((g.gate[path_idx]==2).sum())
-            path_emb = hs[path_idx]
-            path_emb = torch.cat([self.cls_path_token.unsqueeze(0), path_emb,torch.zeros([self.max_path_len-1-path_emb.shape[0],self.hidden])],dim=0)
-            path_hs.append(path_emb)
-        path_hs = torch.stack(path_hs)
-        gate_1 = torch.tensor(gate_1)
-        gate_2 = torch.tensor(gate_2)
-        pos = torch.arange(path_hs.shape[1]).unsqueeze(0).repeat(path_hs.shape[0],1).to(hs.device)
-        path_hs = path_hs + self.Path_Pos(pos)
-        path_hs = self.pathformer(path_hs)
+        # path_hs = []
+        # gate_1 = []
+        # gate_2 = []
+        # for i in range(g.paths.shape[0]):
+        #     path_idx = g.paths[i][:g.paths_len[i]]
+        #     gate_1.append((g.gate[path_idx]==1).sum())
+        #     gate_2.append((g.gate[path_idx]==2).sum())
+        #     path_emb = hs[path_idx]
+        #     path_emb = torch.cat([self.cls_path_token.unsqueeze(0), path_emb,torch.zeros([self.max_path_len-1-path_emb.shape[0],self.hidden])],dim=0)
+        #     path_hs.append(path_emb)
+        # path_hs = torch.stack(path_hs)
+        # gate_1 = torch.tensor(gate_1)
+        # gate_2 = torch.tensor(gate_2)
+        # pos = torch.arange(path_hs.shape[1]).unsqueeze(0).repeat(path_hs.shape[0],1).to(hs.device)
+        # path_hs = path_hs + self.Path_Pos(pos)
+        # path_hs = self.pathformer(path_hs)
         #on-path prediction
 
         #path num prediction

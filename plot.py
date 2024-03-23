@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 
-path = '/uac/gds/zyzheng23/projects/DeepGate3-Transformer/exp/structure_train.log'
+path = '/uac/gds/zyzheng23/projects/DeepGate3-Transformer/exp/joint_train_tfhead.log'
 name = path.split('/')[-1].split('.')[0]
 hams = []
 probs = []
@@ -19,9 +19,9 @@ with open(path,'r') as f:
         #     prob = float(line.split(':')[-1])
         #     probs.append(prob)
 
-# plt.plot(range(len(hams[1::2])),hams[1::2])
-plt.plot(range(len(accs[1::2])),accs[1::2])
+plt.plot(range(len(hams[1::2])),hams[1::2])
+# plt.plot(range(len(accs[1::2])),accs[1::2])
 # plt.plot(range(len(probs[1::2])),probs[1::2])
-# plt.legend(['hamining dist'])
-plt.legend(['connect acc'])
+plt.legend(['hamining dist'])
+# plt.legend(['connect acc'])
 plt.savefig(f'/uac/gds/zyzheng23/projects/DeepGate3-Transformer/exp/plot/{name}.png')

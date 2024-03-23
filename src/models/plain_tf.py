@@ -35,21 +35,12 @@ class Plain_Transformer(nn.Sequential):
         self.record = {}
         self.num_head = attn_heads
         self.mask_token = nn.Parameter(torch.randn([hidden,]))
-        #TODO: the max_length should be the max number of gate in a circuit
         self.max_length = 512
         TransformerEncoderLayer = nn.TransformerEncoderLayer(d_model=self.hidden, nhead=attn_heads, dropout=dropout, batch_first=True)
-        self.transformer_blocks = nn.TransformerEncoder(TransformerEncoderLayer, num_layers=n_layers)
-        self.function_head = nn.TransformerEncoder(TransformerEncoderLayer, num_layers=3)
-        self.struture_head = nn.TransformerEncoder(TransformerEncoderLayer, num_layers=3)
-        # self.transformer_blocks = nn.ModuleList(
-        #     [TransformerBlock(hidden, attn_heads, hidden * 4, dropout) for _ in range(n_layers)])
-        self.cls_head = nn.Sequential(nn.Linear(hidden*2, hidden*4),
-                        nn.ReLU(),
-                        nn.LayerNorm(hidden*4),
-                        nn.Linear(hidden*4, 16))
+        self.function_transformer = nn.TransformerEncoder(TransformerEncoderLayer, num_layers=n_layers)
+        self.structure_transformer = nn.TransformerEncoder(TransformerEncoderLayer, num_layers=n_layers)
 
-    def clean_record(self):
-        self.record = {}
+
 
     # def forward(self, g, subgraph):
     def forward(self, g, hs, hf):
@@ -76,9 +67,9 @@ class Plain_Transformer(nn.Sequential):
 
         padding_mask = torch.where(padding_mask==1, True, False)# Flase = compute attention, True = mask # inverse to fit nn.transformer
                 
-        h = self.transformer_blocks(mask_hop_states, src_key_padding_mask=padding_mask, mask = corr_m)
-        hf_tf = self.function_head(h) 
-        hs_tf = self.struture_head(h)
+        hf_tf = self.function_transformer(mask_hop_states, src_key_padding_mask=padding_mask, mask = corr_m)
+        hs_tf = self.structure_transformer(mask_hop_states, src_key_padding_mask=padding_mask, mask = corr_m)
+
 
         for i in range(bs):
             batch_idx = g.forward_index[g.batch==i]
