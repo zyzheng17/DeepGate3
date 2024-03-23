@@ -169,7 +169,7 @@ class NpzParser():
                 
                 # if self.args.sample_path_data:
                     # Sample paths
-                sample_paths, sample_paths_len = get_sample_paths(graph, no_path=1000, max_path_len=256, path_hop_k=self.args.k_hop)
+                sample_paths, sample_paths_len = get_sample_paths(graph, no_path=1000, max_path_len=256, path_hop_k=0)
                 graph.paths = torch.tensor(sample_paths, dtype=torch.long)
                 graph.paths_len = torch.tensor(sample_paths_len, dtype=torch.long)
                 # if not self.args.sample_path_data and not self.args.no_cone:

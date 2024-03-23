@@ -6,7 +6,7 @@ def get_parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--exp_id', default='default')
     parser.add_argument('--local_rank', default=0, type=int)
-    parser.add_argument('--debug', default=False , action='store_true')
+    parser.add_argument('--debug', default=True , action='store_true')
     parser.add_argument('--gpus', default='-1', type=str)
     parser.add_argument('--test', action='store_true')
     
@@ -15,7 +15,7 @@ def get_parse_args():
     parser.add_argument('--circuit_path', default='/uac/gds/zyzheng23/projects/DeepGate3-Transformer/data/train_dg3/graphs.npz')
     parser.add_argument('--enable_large_circuit', action='store_true')
     parser.add_argument('--hop_ratio', default=0.15, type=float)
-    parser.add_argument('--k_hop', default=0, type=int)
+    parser.add_argument('--k_hop', default=4, type=int)
     parser.add_argument('--max_hop_pi', default=6, type=int)
     parser.add_argument('--sample_path_data',default=False, action='store_true')
     parser.add_argument('--no_cone', action='store_true')
@@ -41,7 +41,7 @@ def get_parse_args():
     
     # Train
     parser.add_argument('--en_distrubuted', action='store_true')
-    parser.add_argument('--batch_size', default=64, type=int)
+    parser.add_argument('--batch_size', default=4, type=int)
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--epoch', default=300, type=int)
     parser.add_argument('--stage2_steps', default=50, type=int)
