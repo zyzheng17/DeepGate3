@@ -232,51 +232,52 @@ class Trainer():
             return False
 
     def run_batch(self, batch):
-        # Get all subgraph (k-hops)
-        subgraph = get_all_hops(batch, self.args.k_hop) 
-        # Get embeddings: hs/hf node-level, hop_hs/hop_hf graph-level
-        hs, hf, hop_hs, hop_hf = self.model(batch, subgraph)
-        
-        # DG2 Tasks
-        prob, tt_index, tt_sim = DeepGate2_Tasks(batch)
-        pred_prob = self.model.prob_pred(hf).to(self.device)
-        prob = prob.unsqueeze(1).to(self.device)
-        l_fprob = self.l1_loss(pred_prob, prob)
-        pred_tt_sim = torch.cosine_similarity(hf[tt_index[:, 0]], hf[tt_index[:, 1]], eps=1e-8)
-        pred_tt_sim = normalize_1(pred_tt_sim).float().to(self.device)
-        tt_sim = normalize_1(tt_sim).float().to(self.device)
-        l_fttsim = self.l1_loss(pred_tt_sim, tt_sim)
-        
-        # Functional Tasks (Graph mask prediction)
-        l_ftt = 0
-        tt_list, no_pi_list, sample_list = sample_functional_tt(subgraph, 100)
-        for graph_k, idx in enumerate(sample_list):
-            if no_pi_list[graph_k] > 6:
-                continue
-            pred_tt = self.model.pred_tt(hop_hs[idx], no_pi_list[graph_k])
-            label_tt = torch.tensor(tt_list[graph_k])
-            while len(label_tt) < 64:
-                label_tt = torch.cat([label_tt, label_tt])
-            pred_tt = pred_tt.to(self.device)
-            label_tt = label_tt.to(self.device)
-            l_ftt += self.bce(pred_tt, label_tt.float())
-        l_ftt /= len(sample_list)
 
-        # Structural Tasks
-        stru_sim, pair_idx = sample_structural_sim(subgraph, 32)
-        hs_sim = torch.cosine_similarity(hop_hs[pair_idx[:, 0]], hop_hs[pair_idx[:, 1]], eps=1e-8)
-        stru_sim = normalize_1(stru_sim).float().to(self.device)
-        hs_sim = normalize_1(hs_sim).float().to(self.device)
-        l_ssim = self.l1_loss(hs_sim, stru_sim)
+        hs, hf, pred_prob, pred_hop_tt, pred_level, pred_connect, pred_hop_num = self.model(batch)
+
+        #===================function=====================
+        if torch.isnan(pred_hop_tt).sum() > 0:
+            print('nan in pred_hop_tt')
+            print(batch.name)
+            exit(0)
+        
+        # logic probility predction(gate-level)
+        l_fprob = self.l1_loss(pred_prob, batch.prob.unsqueeze(1).to(self.device))
+
+        # Truth table predction(graph-level)
+        pred_hop_tt_prob = nn.Sigmoid()(pred_hop_tt).to(self.device)
+        pred_tt = torch.where(pred_hop_tt_prob > 0.5, 1, 0)
+        pred_hop_tt_prob = torch.clamp(pred_hop_tt_prob, 1e-6, 1-1e-6)
+        l_ftt = self.bce(pred_hop_tt_prob, batch.hop_tt.float())
+        hamming_dist = torch.mean(torch.abs(pred_tt.float()-batch.hop_tt.float())).cpu()
+
+        #===================structure====================  
+        # level prediction
+        l_slv = self.l1_loss(pred_level.squeeze(-1), batch.forward_level.to(self.device))
+
+        #connect classification
+        l_scon = self.ce(pred_connect,batch.connect_label)
+        prob = self.softmax(pred_connect)
+        pred_cls = torch.argmax(prob,dim=1)
+        acc = torch.sum(pred_cls==batch.connect_label) * 1.0 / prob.shape[0]
+
+        #hop num prediction
+        l_snum = self.l1_loss(pred_hop_num.squeeze(-1), torch.sum(batch.hop_nodes_stats,dim=1))
+
+        # hamming_dist = torch.mean(torch.abs(pred_tt.float()-batch.hop_tt.float()))
         
         loss_status = {
             'prob': l_fprob,
-            'tt_sim': l_fttsim,
+            'tt_sim': 0,
             'tt_cls': l_ftt,
-            'g_sim': l_ssim,
+            'g_sim': 0,
+            'level_loss': l_slv,
+            'connect_loss': l_scon,
+            'hop_num_loss': l_snum,
         }
         
-        return loss_status
+        # return loss_status, hamming_dist
+        return loss_status, acc, hamming_dist
 
     def run_batch_structure(self, batch):
         
@@ -303,7 +304,6 @@ class Trainer():
         }
         
         return loss_status, acc
-
 
     def run_batch_func(self, batch):
         
@@ -395,23 +395,30 @@ class Trainer():
                     #function
                     # loss_dict, hamming_dist = self.run_batch_func(batch)
                     #structure
-                    loss_dict, acc = self.run_batch_structure(batch)
+                    # loss_dict, acc = self.run_batch_structure(batch)
+                    #function & structure
+                    loss_dict, acc, hamming_dist = self.run_batch(batch)
                     
                     if len(loss_dict) == 0:
                         continue
                     acc_list.append(acc)
-                    # hamming_list.append(hamming_dist)
-                    # lprob.append(loss_dict['prob'].item())
-                    # loss = (loss_dict['prob'] * self.args.w_prob + \
-                    #         loss_dict['tt_sim'] * self.args.w_tt_sim + \
-                    #         loss_dict['tt_cls'] * self.args.w_tt_cls + \
-                    #         loss_dict['g_sim'] * self.args.w_g_sim) / (self.args.w_prob + self.args.w_tt_sim + self.args.w_tt_cls + self.args.w_g_sim)
-                    loss = loss_dict['level_loss'] + loss_dict['connect_loss'] + loss_dict['hop_num_loss']
+                    hamming_list.append(hamming_dist)
+                    
+                    #function loss
+                    loss = (loss_dict['prob'] * self.args.w_prob + \
+                            loss_dict['tt_sim'] * self.args.w_tt_sim + \
+                            loss_dict['tt_cls'] * self.args.w_tt_cls + \
+                            loss_dict['g_sim'] * self.args.w_g_sim) / (self.args.w_prob + self.args.w_tt_sim + self.args.w_tt_cls + self.args.w_g_sim)
+                    lprob.append(loss_dict['prob'].item())
+                    lttcls.append(loss_dict['tt_cls'].item())
+
+                    #structure loss
+                    loss = loss + loss_dict['level_loss'] + loss_dict['connect_loss'] + loss_dict['hop_num_loss']
                     lnum.append(loss_dict['hop_num_loss'].item())
                     llevel.append(loss_dict['level_loss'].item())
                     lconnect.append(loss_dict['connect_loss'].item())
                     lall.append(loss.item())
-                    # lttcls.append(loss_dict['tt_cls'].item())
+
                     if phase == 'train':
                         self.optimizer.zero_grad()
                         loss.backward()
@@ -437,8 +444,11 @@ class Trainer():
                         for loss_key in loss_dict:
                             if loss_dict[loss_key] !=0:
                                 output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                        output_log += ' | hamming_dist: {:.4f}'.format(hamming_dist)
                         output_log += ' | connect acc: {:.4f}'.format(acc)
                         print(output_log)
+                print(f'overall hamming distance:{torch.mean(torch.tensor(hamming_list))}')
+                print(f'overall probability loss:{torch.mean(torch.tensor(lprob))}')
                 print(f'overall connect acc:{torch.mean(torch.tensor(acc_list))}')
                 print(f'overall level loss:{torch.mean(torch.tensor(llevel))}')
                 print(f'overall hop num loss:{torch.mean(torch.tensor(lnum))}')
