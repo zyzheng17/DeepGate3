@@ -140,11 +140,23 @@ int main(int argc, char **argv)
             if (std::abs(prob_list[i] - prob_list[j]) > 0.1)
                 continue;
             // 3. They are not connected
-            auto it1 = std::find(fanin_list[i].begin(), fanin_list[i].end(), j);
-            if (it1 != fanin_list[i].end())
+            bool connected = false;
+            for (int k = 0; k < fanout_list[i].size(); k++) {
+                if (fanout_list[i][k] == j) {
+                    connected = true;
+                    break;
+                }
+            }
+            if (connected)
                 continue;
-            auto it2 = std::find(fanin_list[j].begin(), fanin_list[j].end(), i);
-            if (it2 != fanin_list[j].end())
+            connected = false;
+            for (int k = 0; k < fanout_list[j].size(); k++) {
+                if (fanout_list[j][k] == i) {
+                    connected = true;
+                    break;
+                }
+            }
+            if (connected)
                 continue;
             // 4. Extreme Case
             int cnt = 0;
