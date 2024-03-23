@@ -19,6 +19,7 @@ from utils.circuit_utils import complete_simulation, prepare_dg2_labels_cpp, \
     get_fanin_fanout_cone, get_sample_paths, remove_unconnected, \
     get_connection_pairs, get_hop_pair_labels
     
+NODE_CONNECT_SAMPLE_RATIO = 0.1
 NO_NODE_PATH = 10
 NO_NODE_HOP = 10
 
@@ -179,7 +180,7 @@ class NpzParser():
                     cone = graph.fanin_fanout_cone
                 connect_pair_index, connect_label = get_connection_pairs(
                     x_data, edge_index, forward_level, 
-                    no_src=int(len(x_data)*0.2), no_dst=int(len(x_data)*0.2),
+                    no_src=int(len(x_data)*NODE_CONNECT_SAMPLE_RATIO), no_dst=int(len(x_data)*NODE_CONNECT_SAMPLE_RATIO),
                     cone=cone
                 )
                 graph.connect_pair_index = connect_pair_index.T
