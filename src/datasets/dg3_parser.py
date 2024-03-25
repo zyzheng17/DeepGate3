@@ -28,18 +28,16 @@ class OrderedData(Data):
         super().__init__()
     
     def __inc__(self, key, value, *args, **kwargs):
-        if 'hop_forward_index' in key:
-            return value.shape[0]
-        elif 'path_forward_index' in key:
-            return value.shape[0]
-        elif key == 'ninp_node_index' or key == 'ninh_node_index':
+        # if 'hop_forward_index' in key:
+        #     return value.shape[0]
+        # elif 'path_forward_index' in key:
+        #     return value.shape[0]
+        if key == 'ninp_node_index' or key == 'ninh_node_index':
             return self.num_nodes
         elif key == 'ninp_path_index':
             return args[0]['path_forward_index'].shape[0]
         elif key == 'ninh_hop_index':
             return args[0]['hop_forward_index'].shape[0]
-        elif 'index' in key or 'face' in key:
-            return self.num_nodes
         elif key == 'hop_pi' or key == 'hop_po' or key == 'hop_nodes': 
             return self.num_nodes
         elif key == 'hop_pair_index' or key == 'hop_forward_index':
@@ -47,6 +45,8 @@ class OrderedData(Data):
         elif key == 'path_forward_index':
             return args[0]['path_forward_index'].shape[0]
         elif key == 'paths' or key == 'hop_nodes':
+            return self.num_nodes
+        elif 'index' in key or 'face' in key:
             return self.num_nodes
         else:
             return 0
@@ -193,6 +193,7 @@ class NpzParser():
                 graph.path_forward_index = torch.tensor(range(len(sample_paths)), dtype=torch.long)
                 graph.paths = torch.tensor(sample_paths, dtype=torch.long)
                 graph.paths_len = torch.tensor(sample_paths_len, dtype=torch.long)
+                graph.paths_and_ratio = torch.tensor(sample_paths_no_and, dtype=torch.long) / torch.tensor(sample_paths_len, dtype=torch.float)
                 graph.paths_no_and = torch.tensor(sample_paths_no_and, dtype=torch.long)
                 graph.paths_no_not = torch.tensor(sample_paths_no_not, dtype=torch.long)
                 # Sample node in path 
@@ -281,14 +282,14 @@ class NpzParser():
                     all_hop_po = torch.cat([all_hop_po, hop_pos.view(1, -1)], dim=0)
                     all_hop_pi_stats = torch.cat([all_hop_pi_stats, torch.tensor(hop_pi_stats).view(1, -1)], dim=0)
                     assert len(hop_nodes) <= max_hop_nodes_cnt
+                    all_hop_nodes_cnt.append(len(hop_nodes))
+                    all_hop_level_cnt.append(no_hops)
                     hop_nodes_stats = torch.ones(len(hop_nodes), dtype=torch.long)
                     hop_nodes = F.pad(hop_nodes, (0, max_hop_nodes_cnt - len(hop_nodes)), value=-1)
                     hop_nodes_stats = F.pad(hop_nodes_stats, (0, max_hop_nodes_cnt - len(hop_nodes_stats)), value=0)
                     all_hop_nodes = torch.cat([all_hop_nodes, hop_nodes.view(1, -1)], dim=0)
                     all_hop_nodes_stats = torch.cat([all_hop_nodes_stats, hop_nodes_stats.view(1, -1)], dim=0)
                     all_tt.append(hop_tt)
-                    all_hop_nodes_cnt.append(len(hop_nodes))
-                    all_hop_level_cnt.append(no_hops)
 
                 graph.hop_pi = all_hop_pi
                 graph.hop_po = all_hop_po
@@ -306,7 +307,7 @@ class NpzParser():
                     continue
                 graph.hop_pair_index = hop_pair_index.T.reshape(2, no_pairs)
                 graph.hop_ged = hop_pair_ged
-                graph.hop_tt_sim = hop_pair_tt_sim
+                graph.hop_tt_sim = torch.tensor(hop_pair_tt_sim, dtype=torch.float)
                 
                 # Sample node in hop 
                 node_hop_pair_index = []
@@ -328,6 +329,11 @@ class NpzParser():
                 graph.ninh_hop_index = ninh_hop_index
                 graph.ninh_labels = node_hop_labels
                 
+                # Statistics
+                graph.no_nodes = len(x_data)
+                graph.no_edges = len(edge_index[0])
+                graph.no_hops = len(all_hop_nodes)
+                graph.no_paths = len(sample_paths)
                 data_list.append(graph)
                 tot_time = time.time() - start_time
                 

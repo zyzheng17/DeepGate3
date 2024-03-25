@@ -46,10 +46,20 @@ def get_parse_args():
     parser.add_argument('--loss', default='l2', type=str)
     
     # Loss weight
-    parser.add_argument('--w_prob', default=1.0, type=float)
-    parser.add_argument('--w_tt_sim', default=1.0, type=float)
-    parser.add_argument('--w_tt_cls', default=1.0, type=float)
-    parser.add_argument('--w_g_sim', default=1.0, type=float)
+    parser.add_argument('--w_gate_prob', default=1.0, type=float)
+    parser.add_argument('--w_gate_lv', default=1.0, type=float)
+    parser.add_argument('--w_gate_con', default=1.0, type=float)
+    parser.add_argument('--w_gate_ttsim', default=1.0, type=float)
+    parser.add_argument('--w_path_onpath', default=1.0, type=float)
+    parser.add_argument('--w_path_len', default=1.0, type=float)
+    parser.add_argument('--w_path_and', default=1.0, type=float)
+    parser.add_argument('--w_path_not', default=1.0, type=float)
+    parser.add_argument('--w_hop_tt', default=1.0, type=float)
+    parser.add_argument('--w_hop_ttsim', default=1.0, type=float)
+    parser.add_argument('--w_hop_GED', default=1.0, type=float)
+    parser.add_argument('--w_hop_num', default=1.0, type=float)
+    parser.add_argument('--w_hop_lv', default=1.0, type=float)
+    parser.add_argument('--w_hop_onhop', default=1.0, type=float)
     
     args = parser.parse_args()
     

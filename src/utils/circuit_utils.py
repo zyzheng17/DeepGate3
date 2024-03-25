@@ -490,6 +490,8 @@ def get_hop_pair_labels(hop_nodes_list, hop_tt, edge_index, no_pairs):
                 if edge[0] in hop_nodes_list[pair[1]] and edge[1] in hop_nodes_list[pair[1]]:
                     g2.add_edge(edge[0].item(), edge[1].item())
             ged = nx.graph_edit_distance(g1, g2, timeout=0.1)
+            ged = ged / max(len(hop_nodes_list[pair[0]]), len(hop_nodes_list[pair[1]]))
+            ged = min(ged, 1.0)
         
         hop_node_pair.append([pair[0], pair[1]])
         hop_ged.append(ged)

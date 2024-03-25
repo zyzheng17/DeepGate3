@@ -64,15 +64,19 @@ class DeepGate3(nn.Module):
             dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
             num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
         )
-        self.readout_gate1 = MLP(
-            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
-            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        )
-        self.readout_gate2 = MLP(
-            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
-            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        )
+        # self.readout_gate1 = MLP(
+        #     dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
+        #     num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
+        # )
+        # self.readout_gate2 = MLP(
+        #     dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
+        #     num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
+        # )
         self.readout_path_len = MLP(
+            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
+            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
+        )
+        self.readout_path_and_ratio = MLP(
             dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
             num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
         )
@@ -101,14 +105,6 @@ class DeepGate3(nn.Module):
             num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
         )
         self.readout_path_len = MLP(
-            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
-            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        )
-        self.readout_path_gate1 = MLP(
-            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
-            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        )
-        self.readout_path_gate2 = MLP(
             dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
             num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
         )
@@ -193,8 +189,9 @@ class DeepGate3(nn.Module):
 
         #path num prediction
         pred_path_len = self.readout_path_len(path_hs)
-        pred_path_gate1 = self.readout_gate1(path_hs)
-        pred_path_gate2 = self.readout_gate2(path_hs)
+        pred_path_and_ratio = self.readout_path_and_ratio(path_hs)  # Predict the ratio of AND gates in the path
+        # pred_path_gate1 = self.readout_gate1(path_hs)
+        # pred_path_gate2 = self.readout_gate2(path_hs)
 
         #=========================================================
         #======================GRAPH-level========================
@@ -310,8 +307,9 @@ class DeepGate3(nn.Module):
             'path':{
                 'on_path':on_path_logits,
                 'length':pred_path_len,
-                'AND': pred_path_gate1,
-                'NOT': pred_path_gate2,
+                'AND': pred_path_and_ratio, 
+                # 'AND': pred_path_gate1,
+                # 'NOT': pred_path_gate2,
             },
             'hop':{
                 'tt':hop_tt,
