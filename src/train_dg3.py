@@ -52,8 +52,7 @@ if __name__ == '__main__':
         args=args, 
         model=model, 
         distributed=args.en_distrubuted, training_id=args.exp_id, batch_size=args.batch_size, device=args.device, 
-        loss=args.loss, 
-        num_workers = 1
+        loss=args.loss
     )
     trainer.train(args.epoch, train_dataset, val_dataset)
     
