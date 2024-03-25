@@ -18,17 +18,23 @@ from utils.dag_utils import subgraph, subgraph_hop
 from bert_model.transformer import TransformerBlock
 
 class Hop_Transformer(nn.Sequential):
-    def __init__(self, args):
+    def __init__(self, args, hidden=128, n_layers=12, attn_heads=4, dropout=0.1):
         super().__init__()
         # Parameters
         self.args = args
         self.device = args.device
-        
+        self.hidden =hidden
         # Model
         self.mask_token = nn.Parameter(torch.randn([args.token_emb,]))
         # self.tf = TransformerEncoderBlock(args, args.token_emb*2).to(self.device)
-        TransformerEncoderLayer = nn.TransformerEncoderLayer(d_model=args.token_emb*2, nhead=args.head_num, dropout=0.1, batch_first=True)
-        self.transformer_blocks = TransformerEncoderLayer
+        # TransformerEncoderLayer = nn.TransformerEncoderLayer(d_model=args.token_emb*2, nhead=args.head_num, dropout=0.1, batch_first=True)
+        # self.transformer_blocks = TransformerEncoderLayer
+
+        TransformerEncoderLayer = nn.TransformerEncoderLayer(d_model=self.hidden, nhead=attn_heads, dropout=dropout, batch_first=True)
+        self.function_transformer = nn.TransformerEncoder(TransformerEncoderLayer, num_layers=n_layers)
+        self.structure_transformer = nn.TransformerEncoder(TransformerEncoderLayer, num_layers=n_layers)
+
+
         
     def clean_record(self):
         self.record = {}
@@ -40,7 +46,7 @@ class Hop_Transformer(nn.Sequential):
         max_hop_size = g.hop_nodes.shape[1]
         
         # mask po function embedding
-        hf[g.hop_po.squeeze()] = self.mask_token
+        # hf[g.hop_po.squeeze()] = self.mask_token
         
         # Hop TF
         for level in range(g.forward_level.max()):
@@ -59,8 +65,8 @@ class Hop_Transformer(nn.Sequential):
                 hop_nodes = g.hop_nodes[level_hop_index[hop_idx]][:no_nodes_in_hop]
                 hop_node_states = node_states[hop_nodes]
                 hop_node_states = hop_node_states.unsqueeze(0)
-                hop_node_states = self.transformer_blocks(hop_node_states, src_key_padding_mask=None, src_mask=None)
-                hf[hop_nodes] += hop_node_states[:, :no_nodes_in_hop, self.args.token_emb:].squeeze(0)
+                hf_states = self.function_transformer(hop_node_states, src_key_padding_mask=None, src_mask=None)
+                hf[hop_nodes] += hf_states[:, :no_nodes_in_hop, self.args.token_emb:].squeeze(0)
             
             
             ########################################################
