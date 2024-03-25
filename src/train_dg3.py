@@ -11,7 +11,7 @@ import sys
 from config import get_parse_args
 
 from models.dg2 import DeepGate2
-from models.dg3 import DeepGate3,DeepGate3_structure
+from models.dg3 import DeepGate3
 from datasets.dataset_utils import npzitem_to_graph
 from datasets.dg3_parser import NpzParser
 from datasets.aig_parser import AIGParser

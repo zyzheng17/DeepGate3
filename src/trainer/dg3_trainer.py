@@ -233,51 +233,76 @@ class Trainer():
 
     def run_batch(self, batch):
 
-        hs, hf, pred_prob, pred_hop_tt, pred_level, pred_connect, pred_hop_num = self.model(batch)
-
-        #===================function=====================
-        if torch.isnan(pred_hop_tt).sum() > 0:
-            print('nan in pred_hop_tt')
-            print(batch.name)
-            exit(0)
+        result_dict = self.model(batch)
         
+        #=========================================================
+        #======================GATE-level=========================
+        #=========================================================  
+             
         # logic probility predction(gate-level)
-        l_fprob = self.l1_loss(pred_prob, batch.prob.unsqueeze(1).to(self.device))
+        l_gate_prob = self.l1_loss(result_dict['node']['prob'], batch.prob.unsqueeze(1).to(self.device))
+        # gate level prediction
+        l_gate_lv = self.l1_loss(result_dict['node']['level'].squeeze(-1), batch.forward_level.to(self.device))
+        #connect classification
+        l_gate_con = self.ce(result_dict['node']['connect'],batch.connect_label)
+        prob = self.softmax(result_dict['node']['connect'])
+        pred_cls = torch.argmax(prob,dim=1)
+        con_acc = torch.sum(pred_cls==batch.connect_label) * 1.0 / prob.shape[0]
+        #gate pair wise tt sim
+        pred_tt_sim = (result_dict['node']['tt_sim']+1)/2
+        l_gate_ttsim = self.l1_loss(pred_tt_sim, batch.tt_sim.to(self.device))
+
+        #=========================================================
+        #======================PATH-level=========================
+        #=========================================================
+        # on path prediction
+        pred_on_path_prob = nn.Sigmoid()(result_dict['path']['on_path']).to(self.device)
+        l_path_onpath = self.bce(pred_on_path_prob,batch.ninp_labels)
+
+        #path length prediction
+        l_path_len = self.l1_loss(result_dict['path']['length'], batch.paths_len.to(self.device))
+
+        #path AND&NOT prediction
+        l_path_and = self.l1_loss(result_dict['path']['AND'], batch.paths_no_and.to(self.device))
+        l_path_not = self.l1_loss(result_dict['path']['NOT'], batch.paths_no_not.to(self.device))
+
+        #=========================================================
+        #======================GRAPH-level========================
+        #=========================================================
 
         # Truth table predction(graph-level)
-        pred_hop_tt_prob = nn.Sigmoid()(pred_hop_tt).to(self.device)
+        pred_hop_tt_prob = nn.Sigmoid()(result_dict['hop']['tt']).to(self.device)
         pred_tt = torch.where(pred_hop_tt_prob > 0.5, 1, 0)
         pred_hop_tt_prob = torch.clamp(pred_hop_tt_prob, 1e-6, 1-1e-6)
-        l_ftt = self.bce(pred_hop_tt_prob, batch.hop_tt.float())
+        l_hop_tt = self.bce(pred_hop_tt_prob, batch.hop_tt.float())
         hamming_dist = torch.mean(torch.abs(pred_tt.float()-batch.hop_tt.float())).cpu()
 
-        #===================structure====================  
-        # level prediction
-        l_slv = self.l1_loss(pred_level.squeeze(-1), batch.forward_level.to(self.device))
+        # pair-wise tt sim
+        pred_hop_ttsim = (result_dict['hop']['tt_sim'].squeeze(-1)+1)/2
+        l_hop_ttsim = self.l1_loss(pred_hop_ttsim, batch.hop_tt_sim.to(self.device))
 
-        #connect classification
-        l_scon = self.ce(pred_connect,batch.connect_label)
-        prob = self.softmax(pred_connect)
-        pred_cls = torch.argmax(prob,dim=1)
-        acc = torch.sum(pred_cls==batch.connect_label) * 1.0 / prob.shape[0]
+        #pair wise GED
+        pred_hop_GED = (result_dict['hop']['GED'].squeeze(-1)+1)/2
+        l_hop_GED = self.l1_loss(pred_hop_GED, batch.hop_ged.to(self.device))
 
         #hop num prediction
-        l_snum = self.l1_loss(pred_hop_num.squeeze(-1), torch.sum(batch.hop_nodes_stats,dim=1))
+        l_hop_num = self.l1_loss(result_dict['hop']['area'].squeeze(-1), torch.sum(batch.hop_nodes_stats,dim=1).to(self.device))
 
-        # hamming_dist = torch.mean(torch.abs(pred_tt.float()-batch.hop_tt.float()))
+        #hop level prediction
+        l_hop_lv = self.l1_loss(result_dict['hop']['time'].squeeze(-1), batch.hop_levs.to(self.device))
+
+        #hop on-hop prediction
+        pred_on_hop_prob = nn.Sigmoid()(result_dict['hop']['on_hop']).to(self.device)
+        l_hop_onhop = self.bce(pred_on_hop_prob,batch.ninh_labels)
+
+
         
-        loss_status = {
-            'prob': l_fprob,
-            'tt_sim': 0,
-            'tt_cls': l_ftt,
-            'g_sim': 0,
-            'level_loss': l_slv,
-            'connect_loss': l_scon,
-            'hop_num_loss': l_snum,
-        }
+        loss = l_gate_prob + l_gate_lv + l_gate_con + l_gate_ttsim \
+            + l_path_onpath + l_path_len + l_path_and + l_path_not \
+            + l_hop_tt + l_hop_ttsim + l_hop_GED + l_hop_num + l_hop_lv + l_hop_onhop
         
         # return loss_status, hamming_dist
-        return loss_status, acc, hamming_dist
+        return loss, con_acc, hamming_dist
 
     def run_batch_structure(self, batch):
         
