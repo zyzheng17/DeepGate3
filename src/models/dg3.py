@@ -228,10 +228,10 @@ class DeepGate3(nn.Module):
         #======================GRAPH-level========================
         #=========================================================
         if skip_hop:
-            hop_tt = torch.zeros(len(hop_hf)).to(hs.device)
+            hop_tt = torch.zeros(len(g.hop_po), 64).to(hs.device)
             hop_tt_sim = torch.zeros(len(g.hop_pair_index[0])).to(hs.device)
-            pred_hop_num = torch.zeros(len(hop_hf)).to(hs.device)
-            pred_hop_level = torch.zeros(len(hop_hf)).to(hs.device)
+            pred_hop_num = torch.zeros(len(g.hop_po)).to(hs.device)
+            pred_hop_level = torch.zeros(len(g.hop_po)).to(hs.device)
             on_hop_logits = torch.zeros(len(g.ninh_node_index)).to(hs.device)
             pred_GED = torch.zeros(len(g.hop_pair_index[0])).to(hs.device)
         else:
