@@ -38,7 +38,7 @@ def get_parse_args():
     
     # Train
     parser.add_argument('--en_distrubuted', action='store_true')
-    parser.add_argument('--batch_size', default=24, type=int)
+    parser.add_argument('--batch_size', default=4, type=int)
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--epoch', default=200, type=int)
     parser.add_argument('--stage2_steps', default=50, type=int)
@@ -74,9 +74,6 @@ def get_parse_args():
         args.en_distrubuted = False
     args.device = torch.device('cuda:1' if args.gpus[0] >= 0 and torch.cuda.is_available() else 'cpu')
 
-    # args.en_distrubuted = False
-    # args.device = torch.device('cuda:1')
-    
     # Training 
     args.skip_path = False
     args.skip_hop = False
