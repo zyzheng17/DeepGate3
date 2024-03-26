@@ -64,14 +64,6 @@ class DeepGate3(nn.Module):
             dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
             num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
         )
-        # self.readout_gate1 = MLP(
-        #     dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
-        #     num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        # )
-        # self.readout_gate2 = MLP(
-        #     dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
-        #     num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        # )
         self.readout_path_len = MLP(
             dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
             num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
@@ -178,7 +170,7 @@ class DeepGate3(nn.Module):
         path_hs =  torch.cat([self.cls_path_token.reshape([1,1,-1]).repeat(g.paths.shape[0],1,1),hs[g.paths]],dim=1)
         # False = compute attention, True = mask 
         path_mask = torch.stack([torch.cat([torch.zeros([g.paths_len[i]+1]),torch.ones([256-g.paths_len[i]])],dim=0) for i in range(g.paths.shape[0])]) 
-        path_mask = torch.where(path_mask==1, True, False)
+        path_mask = torch.where(path_mask==1, True, False).to(hs.device)
         pos = torch.arange(path_hs.shape[1]).unsqueeze(0).repeat(path_hs.shape[0],1).to(hs.device)
         path_hs = path_hs + self.Path_Pos(pos)
         path_hs = self.path_struc_tf(path_hs, src_key_padding_mask = path_mask)[:, 0]
@@ -234,7 +226,7 @@ class DeepGate3(nn.Module):
         hop_hf = hop_hf + self.PositionalEmbedding(pos)
 
         hf_masks = 1 - torch.stack(hf_masks).to(hf.device).float() #bs seq_len 
-        hf_masks = torch.where(hf_masks==1, True, False)
+        hf_masks = torch.where(hf_masks==1, True, False).to(hf.device)
         hop_hf = self.hop_func_tf(hop_hf,src_key_padding_mask = hf_masks)
         hop_hf = hop_hf[:,0]
 
@@ -274,7 +266,7 @@ class DeepGate3(nn.Module):
         hop_hs = hop_hs + self.PositionalEmbedding(pos)
 
         hs_masks = 1 - torch.stack(hs_masks).to(hs.device).float() #bs seq_len 
-        hs_masks = torch.where(hs_masks==1, True, False)
+        hs_masks = torch.where(hs_masks==1, True, False).to(hs.device)
 
         hop_hs = self.hop_struc_tf(hop_hs,src_key_padding_mask = hs_masks)
         hop_hs = hop_hs[:,0]
