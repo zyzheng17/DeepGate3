@@ -157,6 +157,10 @@ class Trainer():
             ))
         else:
             print('Training in single device: ', self.device)
+            
+        # Train 
+        self.skip_path = False
+        self.skip_hop = False
         
         # Loss 
         self.consis_loss_func = nn.MSELoss().to(self.device)
@@ -178,7 +182,6 @@ class Trainer():
         # Model
         self.model = model.to(self.device)
         self.model_epoch = 0
-        
         
         # Temp Data 
         self.stru_sim_tmp = {}
@@ -208,6 +211,23 @@ class Trainer():
             # self.clf_loss = self.clf_loss.to(self.device)
             self.optimizer = self.optimizer
             # self.readout_rc = self.readout_rc.to(self.device)
+        # Check skip 
+        tmp_sum = 0
+        for key in ["path_onpath", "path_len", "path_and"]:
+            tmp_sum += self.loss_weight[key]
+        if tmp_sum == 0:
+            self.skip_path = True
+            print('[INFO] Skip path loss')
+        else:
+            self.skip_path = False
+        tmp_sum = 0
+        for key in ["hop_tt", "hop_ttsim", "hop_GED", "hop_num", "hop_lv", "hop_onhop"]:
+            tmp_sum += self.loss_weight[key]
+        if tmp_sum == 0:
+            self.skip_hop = True
+            print('[INFO] Skip hop loss')
+        else:
+            self.skip_hop = False
 
     def save(self, filename):
         path = os.path.join(self.log_dir, filename)
@@ -240,7 +260,7 @@ class Trainer():
 
     def run_batch(self, batch):
 
-        result_dict = self.model(batch)
+        result_dict = self.model(batch, self.skip_path, self.skip_hop)
         
         #=========================================================
         #======================GATE-level=========================
@@ -426,13 +446,10 @@ class Trainer():
                     loss_dict, metric_dict = self.run_batch(batch)
 
                     for loss_key in loss_dict:
-                        overall_dict[loss_key].append(loss_dict[loss_key].item())
+                        overall_dict[loss_key].append(loss_dict[loss_key].detach().cpu().item())
                     for metric_key in metric_dict:
-                        overall_dict[metric_key].append(metric_dict[metric_key])
+                        overall_dict[metric_key].append(metric_dict[metric_key].detach().cpu())
 
-                    if len(loss_dict) == 0:
-                        continue
-                    loss_list.append(loss_dict['loss'])
                     loss = loss_dict['loss']
 
                     if phase == 'train':
@@ -475,8 +492,9 @@ class Trainer():
                         for metric_key in metric_dict:
                             if metric_dict[metric_key] !=0:
                                 output_log += ' | {}: {:.4f}'.format(metric_key, metric_dict[metric_key])
-                        print(output_log)
-                        print('\n')
+                        if iter_id % 10 ==0:
+                            print(output_log)
+                            print('\n')
 
                 for k in overall_dict:
                     print(f'overall {k}:{torch.mean(torch.tensor(overall_dict[k]))}')

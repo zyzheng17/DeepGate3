@@ -38,12 +38,13 @@ def get_parse_args():
     
     # Train
     parser.add_argument('--en_distrubuted', action='store_true')
-    parser.add_argument('--batch_size', default=4, type=int)
+    parser.add_argument('--batch_size', default=24, type=int)
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--epoch', default=200, type=int)
     parser.add_argument('--stage2_steps', default=50, type=int)
     parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--loss', default='l2', type=str)
+    parser.add_argument('--fast', action='store_true', default=False)
     
     # Loss weight
     parser.add_argument('--w_gate_prob', default=1.0, type=float)
@@ -53,7 +54,6 @@ def get_parse_args():
     parser.add_argument('--w_path_onpath', default=1.0, type=float)
     parser.add_argument('--w_path_len', default=1.0, type=float)
     parser.add_argument('--w_path_and', default=1.0, type=float)
-    parser.add_argument('--w_path_not', default=1.0, type=float)
     parser.add_argument('--w_hop_tt', default=1.0, type=float)
     parser.add_argument('--w_hop_ttsim', default=1.0, type=float)
     parser.add_argument('--w_hop_GED', default=1.0, type=float)
@@ -75,5 +75,9 @@ def get_parse_args():
 
     # args.en_distrubuted = False
     # args.device = torch.device('cuda:1')
+    
+    # Training 
+    args.skip_path = False
+    args.skip_hop = False
     
     return args
