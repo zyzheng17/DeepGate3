@@ -5,7 +5,7 @@ import torch
 def get_parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--exp_id', default='default')
-    parser.add_argument('--local_rank', default=0, type=int)
+    parser.add_argument('--local-rank', default=0, type=int)
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--gpus', default='4', type=str)
     parser.add_argument('--test', action='store_true')

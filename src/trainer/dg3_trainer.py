@@ -4,7 +4,7 @@ import torch
 from torch import nn
 import time
 import random
-from progress.bar import Bar
+# from progress.bar import Bar
 from torch_geometric.loader import DataLoader
 import copy
 # from deepgate.arch.mlp import MLP
@@ -392,13 +392,13 @@ class Trainer():
                     dataset = val_dataset
                     self.model.eval()
                     self.model.to(self.device)
-                if self.local_rank == 0:
-                    bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
+                # if self.local_rank == 0:
+                #     bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
                 hamming_list = []
                 acc_list = []
                 loss_list = []
-                if self.local_rank == 0:
-                    bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
+                # if self.local_rank == 0:
+                #     bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
                 overall_dict = {
                     'gate_prob': [],
                     'gate_lv': [],

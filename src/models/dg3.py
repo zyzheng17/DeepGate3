@@ -165,11 +165,15 @@ class DeepGate3(nn.Module):
         #=========================================================
         #======================PATH-level=========================
         #=========================================================
-
+        # Stone: reduce maximum path length
+        max_path_len = g.paths_len.max().item()     # previous: 256
+        assert max_path_len < 128, "path length is too large"
+        g.paths = g.paths[:,:max_path_len]
+        
         #path-level pretrain task : on-path prediction, path num prediction
         path_hs =  torch.cat([self.cls_path_token.reshape([1,1,-1]).repeat(g.paths.shape[0],1,1),hs[g.paths]],dim=1)
         # False = compute attention, True = mask 
-        path_mask = torch.stack([torch.cat([torch.zeros([g.paths_len[i]+1]),torch.ones([256-g.paths_len[i]])],dim=0) for i in range(g.paths.shape[0])]) 
+        path_mask = torch.stack([torch.cat([torch.zeros([g.paths_len[i]+1]),torch.ones([max_path_len-g.paths_len[i]])],dim=0) for i in range(g.paths.shape[0])]) 
         path_mask = torch.where(path_mask==1, True, False).to(path_hs.device)
         pos = torch.arange(path_hs.shape[1]).unsqueeze(0).repeat(path_hs.shape[0],1).to(hs.device)
         path_hs = path_hs + self.Path_Pos(pos)
