@@ -64,14 +64,6 @@ class DeepGate3(nn.Module):
             dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
             num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
         )
-        # self.readout_gate1 = MLP(
-        #     dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
-        #     num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        # )
-        # self.readout_gate2 = MLP(
-        #     dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
-        #     num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        # )
         self.readout_path_len = MLP(
             dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
             num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'

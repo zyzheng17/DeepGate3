@@ -1,6 +1,6 @@
 #!/bin/bash
-python3 ./src/gen_dataset.py \
+nohup python3 -u ./src/gen_dataset.py \
  --exp_id default \
  --gpus -1 \
- --data_dir ./data/dg3_all \
- --circuit_path ./data/dg3_all/graphs.npz 
+ --data_dir ./data/train_dg3 \
+ --circuit_path ./data/train_dg3/graphs.npz >> /uac/gds/zyzheng23/projects/DeepGate3-Transformer/data/data.log 2>&1 &

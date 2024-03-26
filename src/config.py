@@ -7,7 +7,7 @@ def get_parse_args():
     parser.add_argument('--exp_id', default='default')
     parser.add_argument('--local_rank', default=0, type=int)
     parser.add_argument('--debug', default=False, action='store_true')
-    parser.add_argument('--gpus', default='-1', type=str)
+    parser.add_argument('--gpus', default='4', type=str)
     parser.add_argument('--test', action='store_true')
     
     # Dataset
@@ -40,7 +40,7 @@ def get_parse_args():
     parser.add_argument('--en_distrubuted', action='store_true')
     parser.add_argument('--batch_size', default=4, type=int)
     parser.add_argument('--resume', action='store_true')
-    parser.add_argument('--epoch', default=300, type=int)
+    parser.add_argument('--epoch', default=200, type=int)
     parser.add_argument('--stage2_steps', default=50, type=int)
     parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--loss', default='l2', type=str)
@@ -69,8 +69,9 @@ def get_parse_args():
     args.gpus = [i for i in range(len(args.gpus))] if args.gpus[0] >=0 else [-1]
     if len(args.gpus) > 1 and torch.cuda.is_available():
         args.en_distrubuted = True
+    else:
+        args.en_distrubuted = False
     args.device = torch.device('cuda:1' if args.gpus[0] >= 0 and torch.cuda.is_available() else 'cpu')
-
 
     # args.en_distrubuted = False
     # args.device = torch.device('cuda:1')
