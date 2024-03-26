@@ -4,7 +4,7 @@ import torch
 from torch import nn
 import time
 import random
-from progress.bar import Bar
+# from progress.bar import Bar
 from torch_geometric.loader import DataLoader
 import copy
 # from deepgate.arch.mlp import MLP
@@ -157,6 +157,10 @@ class Trainer():
             ))
         else:
             print('Training in single device: ', self.device)
+            
+        # Train 
+        self.skip_path = False
+        self.skip_hop = False
         
         # Loss 
         self.consis_loss_func = nn.MSELoss().to(self.device)
@@ -178,7 +182,6 @@ class Trainer():
         # Model
         self.model = model.to(self.device)
         self.model_epoch = 0
-        
         
         # Temp Data 
         self.stru_sim_tmp = {}
@@ -208,6 +211,23 @@ class Trainer():
             # self.clf_loss = self.clf_loss.to(self.device)
             self.optimizer = self.optimizer
             # self.readout_rc = self.readout_rc.to(self.device)
+        # Check skip 
+        tmp_sum = 0
+        for key in ["path_onpath", "path_len", "path_and"]:
+            tmp_sum += self.loss_weight[key]
+        if tmp_sum == 0:
+            self.skip_path = True
+            print('[INFO] Skip path loss')
+        else:
+            self.skip_path = False
+        tmp_sum = 0
+        for key in ["hop_tt", "hop_ttsim", "hop_GED", "hop_num", "hop_lv", "hop_onhop"]:
+            tmp_sum += self.loss_weight[key]
+        if tmp_sum == 0:
+            self.skip_hop = True
+            print('[INFO] Skip hop loss')
+        else:
+            self.skip_hop = False
 
     def save(self, filename):
         path = os.path.join(self.log_dir, filename)
@@ -240,7 +260,7 @@ class Trainer():
 
     def run_batch(self, batch):
 
-        result_dict = self.model(batch)
+        result_dict = self.model(batch, self.skip_path, self.skip_hop)
         
         #=========================================================
         #======================GATE-level=========================
@@ -392,10 +412,13 @@ class Trainer():
                     dataset = val_dataset
                     self.model.eval()
                     self.model.to(self.device)
-                if self.local_rank == 0:
-                    bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
-                if self.local_rank == 0:
-                    bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
+                # if self.local_rank == 0:
+                #     bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
+                hamming_list = []
+                acc_list = []
+                loss_list = []
+                # if self.local_rank == 0:
+                #     bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
                 overall_dict = {
                     'gate_prob': [],
                     'gate_lv': [],
