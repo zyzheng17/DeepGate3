@@ -38,7 +38,7 @@ def get_parse_args():
     
     # Train
     parser.add_argument('--en_distrubuted', action='store_true')
-    parser.add_argument('--batch_size', default=24, type=int)
+    parser.add_argument('--batch_size', default=4, type=int)
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--epoch', default=200, type=int)
     parser.add_argument('--stage2_steps', default=50, type=int)
@@ -64,16 +64,16 @@ def get_parse_args():
     args = parser.parse_args()
     
     # device
-    args.gpus_str = args.gpus
-    args.gpus = [int(gpu) for gpu in args.gpus.split(',')]
-    args.gpus = [i for i in range(len(args.gpus))] if args.gpus[0] >=0 else [-1]
-    if len(args.gpus) > 1 and torch.cuda.is_available():
-        args.en_distrubuted = True
-    else:
-        args.en_distrubuted = False
-    args.device = torch.device('cuda:1' if args.gpus[0] >= 0 and torch.cuda.is_available() else 'cpu')
+    # args.gpus_str = args.gpus
+    # args.gpus = [int(gpu) for gpu in args.gpus.split(',')]
+    # args.gpus = [i for i in range(len(args.gpus))] if args.gpus[0] >=0 else [-1]
+    # if len(args.gpus) > 1 and torch.cuda.is_available():
+    #     args.en_distrubuted = True
+    # else:
+    #     args.en_distrubuted = False
+    # args.device = torch.device('cuda:2' if args.gpus[0] >= 0 and torch.cuda.is_available() else 'cpu')
 
-    # args.en_distrubuted = False
-    # args.device = torch.device('cuda:1')
+    args.en_distrubuted = False
+    args.device = torch.device('cuda:1')
     
     return args

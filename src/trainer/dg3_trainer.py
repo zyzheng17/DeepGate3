@@ -474,7 +474,7 @@ class Trainer():
                             print('\n')
 
                 for k in overall_dict:
-                    print(f'overall {k}:{torch.mean(torch.tensor(overall_dict[k]))}')
+                    print('overall {}:{:.4f}'.format(k,torch.mean(torch.tensor(overall_dict[k]))))
                 print('\n')
             
                 
