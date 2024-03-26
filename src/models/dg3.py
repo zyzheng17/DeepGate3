@@ -51,15 +51,17 @@ class DeepGate3(nn.Module):
 
         #pooling layer
         pool_layer = nn.TransformerEncoderLayer(d_model=self.hidden, nhead=4, batch_first=True)
-        self.hop_func_tf = nn.TransformerEncoder(pool_layer, num_layers=3)
-        self.hop_struc_tf = nn.TransformerEncoder(pool_layer, num_layers=3)
+        self.hop_func_tf = nn.TransformerEncoder(pool_layer, num_layers=1)
+        self.hop_struc_tf = nn.TransformerEncoder(pool_layer, num_layers=1)
+        self.path_struc_tf = nn.TransformerEncoder(pool_layer, num_layers=1)
+        
+        
+
+        # Prediction 
         self.hop_head = nn.Sequential(nn.Linear(self.hidden, self.hidden*4),
                         nn.ReLU(),
                         nn.LayerNorm(self.hidden*4),
                         nn.Linear(self.hidden*4, self.max_tt_len))
-        self.path_struc_tf = nn.TransformerEncoder(pool_layer, num_layers=3)
-
-        # Prediction 
         self.readout_prob = MLP(
             dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
             num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'

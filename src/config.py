@@ -38,7 +38,7 @@ def get_parse_args():
     
     # Train
     parser.add_argument('--en_distrubuted', action='store_true')
-    parser.add_argument('--batch_size', default=4, type=int)
+    parser.add_argument('--batch_size', default=24, type=int)
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--epoch', default=200, type=int)
     parser.add_argument('--stage2_steps', default=50, type=int)

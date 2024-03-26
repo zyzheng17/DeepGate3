@@ -394,9 +394,6 @@ class Trainer():
                     self.model.to(self.device)
                 if self.local_rank == 0:
                     bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
-                hamming_list = []
-                acc_list = []
-                loss_list = []
                 if self.local_rank == 0:
                     bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
                 overall_dict = {
@@ -426,13 +423,10 @@ class Trainer():
                     loss_dict, metric_dict = self.run_batch(batch)
 
                     for loss_key in loss_dict:
-                        overall_dict[loss_key].append(loss_dict[loss_key].item())
+                        overall_dict[loss_key].append(loss_dict[loss_key].detach().cpu().item())
                     for metric_key in metric_dict:
-                        overall_dict[metric_key].append(metric_dict[metric_key])
+                        overall_dict[metric_key].append(metric_dict[metric_key].detach().cpu())
 
-                    if len(loss_dict) == 0:
-                        continue
-                    loss_list.append(loss_dict['loss'])
                     loss = loss_dict['loss']
 
                     if phase == 'train':
@@ -475,8 +469,9 @@ class Trainer():
                         for metric_key in metric_dict:
                             if metric_dict[metric_key] !=0:
                                 output_log += ' | {}: {:.4f}'.format(metric_key, metric_dict[metric_key])
-                        print(output_log)
-                        print('\n')
+                        if iter_id % 10 ==0:
+                            print(output_log)
+                            print('\n')
 
                 for k in overall_dict:
                     print(f'overall {k}:{torch.mean(torch.tensor(overall_dict[k]))}')
