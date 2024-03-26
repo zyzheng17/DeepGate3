@@ -496,12 +496,10 @@ class Trainer():
                             print(output_log)
                             print('\n')
 
-                for k in overall_dict:
-                    print('overall {}:{:.4f}'.format(k,torch.mean(torch.tensor(overall_dict[k]))))
-                print('\n')
-            
-                
                 if self.local_rank == 0:
+                    for k in overall_dict:
+                        print('overall {}:{:.4f}'.format(k,torch.mean(torch.tensor(overall_dict[k]))))
+                    print('\n')
                     output_log = '({phase}) Epoch: {epoch}| '.format(
                             phase=phase, epoch=epoch
                         )
@@ -524,7 +522,7 @@ class Trainer():
                         if metric_dict[metric_key] !=0:
                             output_log += ' | {}: {:.4f}'.format(metric_key, metric_dict[metric_key])
                     self.logger.write(output_log)
-                print()
+                    print()
             
             # Learning rate decay
             self.model_epoch += 1
