@@ -8,7 +8,7 @@ def get_parse_args():
     parser.add_argument('--local-rank', default=0, type=int)
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--gpus', default='4', type=str)
-    parser.add_argument('--test', action='store_true')
+    parser.add_argument('--test', action='store_true', default=False)
     
     # Dataset
     parser.add_argument('--data_dir', default='/uac/gds/zyzheng23/projects/DeepGate3-Transformer/data/train_dg3')
@@ -39,7 +39,7 @@ def get_parse_args():
     # Train
     parser.add_argument('--en_distrubuted', action='store_true')
     parser.add_argument('--batch_size', default=4, type=int)
-    parser.add_argument('--resume', action='store_true')
+    parser.add_argument('--resume', action='store_true', default=False)
     parser.add_argument('--epoch', default=200, type=int)
     parser.add_argument('--stage2_steps', default=50, type=int)
     parser.add_argument('--lr', default=1e-4, type=float)

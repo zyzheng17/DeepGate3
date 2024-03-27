@@ -62,49 +62,49 @@ if __name__ == '__main__':
         'path_and': 0
     })
     
-    # Stage 1
-    trainer.set_training_args(loss_weight={
-        'gate_prob': 2, 
-        'gate_lv': 1, 
-        'gate_con': 1, 
-        'gate_ttsim': 0, 
-        'hop_tt': 0,
-        'hop_ttsim': 0, 
-        'hop_GED': 0,
-        'hop_num': 0, 
-        'hop_lv': 0, 
-        'hop_onhop': 0, 
-    })
-    trainer.train(50, train_dataset, val_dataset)
+    # # Stage 1
+    # trainer.set_training_args(loss_weight={
+    #     'gate_prob': 2, 
+    #     'gate_lv': 0.5, 
+    #     'gate_con': 1, 
+    #     'gate_ttsim': 0, 
+    #     'hop_tt': 0,
+    #     'hop_ttsim': 0, 
+    #     'hop_GED': 0,
+    #     'hop_num': 0, 
+    #     'hop_lv': 0, 
+    #     'hop_onhop': 0, 
+    # })
+    # trainer.train(50, train_dataset, val_dataset)
     
-    # Stage 2
-    trainer.set_training_args(loss_weight={
-        'gate_prob': 2, 
-        'gate_lv': 0.3, 
-        'gate_con': 1, 
-        'gate_ttsim': 1, 
-        'hop_tt': 0,
-        'hop_ttsim': 0, 
-        'hop_GED': 0,
-        'hop_num': 0, 
-        'hop_lv': 0, 
-        'hop_onhop': 0, 
-    })
-    trainer.train(50, train_dataset, val_dataset)
+    # # Stage 2
+    # trainer.set_training_args(loss_weight={
+    #     'gate_prob': 2, 
+    #     'gate_lv': 0.3, 
+    #     'gate_con': 1, 
+    #     'gate_ttsim': 1, 
+    #     'hop_tt': 0,
+    #     'hop_ttsim': 0, 
+    #     'hop_GED': 0,
+    #     'hop_num': 0, 
+    #     'hop_lv': 0, 
+    #     'hop_onhop': 0, 
+    # })
+    # trainer.train(50, train_dataset, val_dataset)
     
     # Stage 3
     trainer.set_training_args(loss_weight={
         'gate_prob': 2, 
         'gate_lv': 0.3, 
         'gate_con': 1, 
-        'gate_ttsim': 1, 
+        'gate_ttsim': 2, 
         'hop_tt': 1,
-        'hop_ttsim': 1, 
-        'hop_GED': 1,
+        'hop_ttsim': 2, 
+        'hop_GED': 2,
         'hop_num': 0.5, 
         'hop_lv': 0.5, 
         'hop_onhop': 1, 
     })
-    trainer.train(50, train_dataset, val_dataset)
+    trainer.train(100, train_dataset, val_dataset)
     
     
