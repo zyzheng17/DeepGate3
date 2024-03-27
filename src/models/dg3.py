@@ -41,7 +41,8 @@ class DeepGate3(nn.Module):
         self.one_token = nn.Parameter(torch.randn([self.hidden,]))
         self.pad_token = torch.zeros([self.hidden,]) # dont learn
         self.pool_max_length = 10
-        self.PositionalEmbedding = nn.Embedding(10,self.hidden)
+        self.hf_PositionalEmbedding = nn.Embedding(33,self.hidden)
+        self.hs_PositionalEmbedding = nn.Embedding(33,self.hidden)
         self.Path_Pos = nn.Embedding(self.max_path_len,self.hidden)
         
         # Transformer 
@@ -105,6 +106,14 @@ class DeepGate3(nn.Module):
 
         #Similarity
         self.sim = nn.CosineSimilarity(dim=1, eps=1e-6)
+        self.proj_ttsim = MLP(
+            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=self.args.token_emb, 
+            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
+        )
+        self.proj_GED = MLP(
+            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=self.args.token_emb, 
+            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
+        )
 
     
     def load(self, path):
@@ -277,47 +286,55 @@ class DeepGate3(nn.Module):
             hop_hf = hop_hf[:,0]
 
             #pair-wise TT sim prediction
-            hop_tt_sim = self.sim(hop_hf[g.hop_forward_index[g.hop_pair_index[0]]], hop_hf[g.hop_forward_index[g.hop_pair_index[0]]])
+            hop_hf1 = self.proj_ttsim(hop_hf[g.hop_forward_index[g.hop_pair_index[0]]])
+            hop_hf2 = self.proj_ttsim(hop_hf[g.hop_forward_index[g.hop_pair_index[1]]])
+
+            hop_tt_sim = self.sim(hop_hf1, hop_hf2)
             # truth table prediction
             hop_tt = self.hop_head(hop_hf)
 
             #graph-level pretrain task : PPA prediction
-            hop_hs = []
-            hs_masks = []
-            for i in range(g.hop_po.shape[0]):
-                pi_idx = g.hop_pi[i][g.hop_pi_stats[i]!=-1].squeeze(-1)
-                pi_hop_stats = g.hop_pi_stats[i]
-                pi_emb = hs[pi_idx]
-                pi_emb = []
-                for j in range(8):
-                    if pi_hop_stats[j] == -1:
-                        continue
-                    else:
-                        pi_emb.append(hs[g.hop_pi[i][j]])
-                # pad seq to fixed length
-                hs_mask = [1 for _ in range(len(pi_emb))]
-                while len(pi_emb) < 8:
-                    pi_emb.append(self.pad_token.to(hs.device))
-                    hs_mask.append(0)
+            # hop_hs = []
+            # hs_masks = []
+            # for i in range(g.hop_po.shape[0]):
+            #     pi_idx = g.hop_pi[i][g.hop_pi_stats[i]!=-1].squeeze(-1)
+            #     pi_hop_stats = g.hop_pi_stats[i]
+            #     pi_emb = hs[pi_idx]
+            #     pi_emb = []
+            #     for j in range(8):
+            #         if pi_hop_stats[j] == -1:
+            #             continue
+            #         else:
+            #             pi_emb.append(hs[g.hop_pi[i][j]])
+            #     # pad seq to fixed length
+            #     hs_mask = [1 for _ in range(len(pi_emb))]
+            #     while len(pi_emb) < 8:
+            #         pi_emb.append(self.pad_token.to(hs.device))
+            #         hs_mask.append(0)
 
-                pi_emb = torch.stack(pi_emb) # 8 128
-                po_emb = hs[g.hop_po[i]] # 1 128
-                hop_hs.append(torch.cat([self.cls_token.unsqueeze(0),pi_emb,po_emb], dim=0)) 
-                hs_mask.insert(0,1)
-                hs_mask.append(1)
-                hs_masks.append(torch.tensor(hs_mask))
-
-            hop_hs = torch.stack(hop_hs) #bs seq_len hidden
+            #     pi_emb = torch.stack(pi_emb) # 8 128
+            #     po_emb = hs[g.hop_po[i]] # 1 128
+            #     hop_hs.append(torch.cat([self.cls_token.unsqueeze(0),pi_emb,po_emb], dim=0)) 
+            #     hs_mask.insert(0,1)
+            #     hs_mask.append(1)
+            #     hs_masks.append(torch.tensor(hs_mask))
+            # hop_hs = torch.stack(hop_hs) #bs seq_len hidden
+            hop_hs = hs[g.hop_nodes]
+            
             pos = torch.arange(hop_hs.shape[1]).unsqueeze(0).repeat(hop_hs.shape[0],1).to(hs.device)
             hop_hs = hop_hs + self.PositionalEmbedding(pos)
 
-            hs_masks = 1 - torch.stack(hs_masks).to(hs.device).float() #bs seq_len 
+            # hs_masks = 1 - torch.stack(hs_masks).to(hs.device).float() #bs seq_len 
+            hs_masks = 1 - g.hop_nodes_stats
             hs_masks = torch.where(hs_masks==1, True, False).to(hop_hs.device)
 
             hop_hs = self.hop_struc_tf(hop_hs,src_key_padding_mask = hs_masks)
             hop_hs = hop_hs[:,0]
             #pari-wise GED prediction 
-            pred_GED = self.sim(hop_hs[g.hop_pair_index[0]], hop_hs[g.hop_pair_index[1]])
+            hop_hs1 = self.proj_GED(hop_hs[g.hop_pair_index[0]])
+            hop_hs2 = self.proj_GED(hop_hs[g.hop_pair_index[1]])
+
+            pred_GED = self.sim(hop_hs1, hop_hs2)
 
             #gate number prediction
             pred_hop_num = self.readout_num(hop_hs)
