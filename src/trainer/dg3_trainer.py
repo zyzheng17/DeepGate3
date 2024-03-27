@@ -147,7 +147,7 @@ class Trainer():
         if self.distributed:
             if 'LOCAL_RANK' in os.environ:
                 self.local_rank = int(os.environ['LOCAL_RANK'])
-            self.device = 'cuda:%d' % self.local_rank
+            self.device = 'cuda:%d' % self.args.gpus[self.local_rank]
             torch.cuda.set_device(self.local_rank)
             torch.distributed.init_process_group(backend='nccl', init_method='env://')
             self.world_size = torch.distributed.get_world_size()
@@ -496,18 +496,33 @@ class Trainer():
                             print(output_log)
                             print('\n')
 
-                for k in overall_dict:
-                    print('overall {}:{:.4f}'.format(k,torch.mean(torch.tensor(overall_dict[k]))))
-                print('\n')
-            
-                
-                # if self.local_rank == 0:
-                #     self.logger.write('{} Epoch: {:}/{:}| Prob: {:.4f}| TTCLS: {:.4f}| Loss: {:.4f}| Dist: {:.4f}'.format(
-                #         phase, epoch, num_epoch, 
-                #         torch.mean(torch.tensor(lprob)).item(), torch.mean(torch.tensor(lttcls)).item(),
-                #         torch.mean(torch.tensor(lall)).item(), torch.mean(torch.tensor(hamming_list)).item()
-                #     ))
-                # print()
+                if self.local_rank == 0:
+                    for k in overall_dict:
+                        print('overall {}:{:.4f}'.format(k,torch.mean(torch.tensor(overall_dict[k]))))
+                    print('\n')
+                    output_log = '({phase}) Epoch: {epoch}| '.format(
+                            phase=phase, epoch=epoch
+                        )
+                    output_log += '\n======================GATE-level======================== \n'
+                    for loss_key in loss_dict:
+                        if 'gate' in loss_key:
+                            output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                    output_log += '\n======================PATH-level======================== \n'
+                    for loss_key in loss_dict:
+                        if 'path' in loss_key:
+                            output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                    output_log += '\n======================Graph-level======================= \n'
+                    for loss_key in loss_dict:
+                        if 'hop' in loss_key:
+                            output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                    output_log += '\n======================All-level========================= \n'
+                    output_log += ' | {}: {:.4f}'.format('loss', loss_dict['loss'].item())
+                    output_log += '\n======================Metric============================\n'
+                    for metric_key in metric_dict:
+                        if metric_dict[metric_key] !=0:
+                            output_log += ' | {}: {:.4f}'.format(metric_key, metric_dict[metric_key])
+                    self.logger.write(output_log)
+                    print()
             
             # Learning rate decay
             self.model_epoch += 1

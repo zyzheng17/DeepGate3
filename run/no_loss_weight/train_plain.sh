@@ -2,7 +2,7 @@
 NUM_PROC=2
 GPUS=0,1
 
-nohup python3 -m torch.distributed.launch --nproc_per_node=$NUM_PROC ./src/train_dg3.py \
+python3 -m torch.distributed.launch --nproc_per_node=$NUM_PROC --master_port=29501 ./src/train_dg3.py \
  --exp_id plain \
  --gpus ${GPUS} \
  --data_dir ./data/dg3_all \

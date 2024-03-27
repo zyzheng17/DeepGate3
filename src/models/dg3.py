@@ -34,7 +34,8 @@ class DeepGate3(nn.Module):
         self.tokenizer.load_pretrained(args.pretrained_model_path)
 
         #special token
-        self.cls_token = nn.Parameter(torch.randn([self.hidden,]))
+        self.cls_token_hf = nn.Parameter(torch.randn([self.hidden,]))
+        self.cls_token_hs = nn.Parameter(torch.randn([self.hidden,]))
         self.cls_path_token = nn.Parameter(torch.randn([self.hidden,]))
         self.dc_token = nn.Parameter(torch.randn([self.hidden,]))
         self.zero_token = nn.Parameter(torch.randn([self.hidden,]))
@@ -237,10 +238,10 @@ class DeepGate3(nn.Module):
         #======================GRAPH-level========================
         #=========================================================
         if skip_hop:
-            hop_tt = torch.zeros(len(hop_hf)).to(hs.device)
+            hop_tt = torch.zeros(len(g.hop_po), 64).to(hs.device)
             hop_tt_sim = torch.zeros(len(g.hop_pair_index[0])).to(hs.device)
-            pred_hop_num = torch.zeros(len(hop_hf)).to(hs.device)
-            pred_hop_level = torch.zeros(len(hop_hf)).to(hs.device)
+            pred_hop_num = torch.zeros(len(g.hop_po)).to(hs.device)
+            pred_hop_level = torch.zeros(len(g.hop_po)).to(hs.device)
             on_hop_logits = torch.zeros(len(g.ninh_node_index)).to(hs.device)
             pred_GED = torch.zeros(len(g.hop_pair_index[0])).to(hs.device)
         else:
@@ -271,14 +272,14 @@ class DeepGate3(nn.Module):
                     hf_mask.append(0)
                 pi_emb = torch.stack(pi_emb) # 8 128
                 po_emb = hf[g.hop_po[i]] # 1 128
-                hop_hf.append(torch.cat([self.cls_token.unsqueeze(0),pi_emb,po_emb], dim=0)) 
+                hop_hf.append(torch.cat([self.cls_token_hf.unsqueeze(0),pi_emb,po_emb], dim=0)) 
                 hf_mask.insert(0,1)
                 hf_mask.append(1)
                 hf_masks.append(torch.tensor(hf_mask))
 
             hop_hf = torch.stack(hop_hf) #bs seq_len hidden
             pos = torch.arange(hop_hf.shape[1]).unsqueeze(0).repeat(hop_hf.shape[0],1).to(hf.device)
-            hop_hf = hop_hf + self.PositionalEmbedding(pos)
+            hop_hf = hop_hf + self.hf_PositionalEmbedding(pos)
 
             hf_masks = 1 - torch.stack(hf_masks).to(hf.device).float() #bs seq_len 
             hf_masks = torch.where(hf_masks==1, True, False).to(hop_hf.device)
@@ -320,12 +321,14 @@ class DeepGate3(nn.Module):
             #     hs_masks.append(torch.tensor(hs_mask))
             # hop_hs = torch.stack(hop_hs) #bs seq_len hidden
             hop_hs = hs[g.hop_nodes]
+            hop_hs = torch.cat([self.cls_token_hs.reshape(1,1,-1).repeat(hop_hs.shape[0],1,1),hop_hs],dim=1)
             
             pos = torch.arange(hop_hs.shape[1]).unsqueeze(0).repeat(hop_hs.shape[0],1).to(hs.device)
-            hop_hs = hop_hs + self.PositionalEmbedding(pos)
+            hop_hs = hop_hs + self.hs_PositionalEmbedding(pos)
 
             # hs_masks = 1 - torch.stack(hs_masks).to(hs.device).float() #bs seq_len 
             hs_masks = 1 - g.hop_nodes_stats
+            hs_masks = torch.cat([torch.zeros([hs_masks.shape[0],1]).to(hs.device),hs_masks],dim=1)
             hs_masks = torch.where(hs_masks==1, True, False).to(hop_hs.device)
 
             hop_hs = self.hop_struc_tf(hop_hs,src_key_padding_mask = hs_masks)

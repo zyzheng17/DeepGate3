@@ -66,16 +66,17 @@ def get_parse_args():
     # device
     # args.gpus_str = args.gpus
     # args.gpus = [int(gpu) for gpu in args.gpus.split(',')]
-    # args.gpus = [i for i in range(len(args.gpus))] if args.gpus[0] >=0 else [-1]
+    # print('Using GPU:', args.gpus)
+    # # args.gpus = [i for i in range(len(args.gpus))] if args.gpus[0] >=0 else [-1]
     # if len(args.gpus) > 1 and torch.cuda.is_available():
     #     args.en_distrubuted = True
     # else:
     #     args.en_distrubuted = False
-    # args.device = torch.device('cuda:2' if args.gpus[0] >= 0 and torch.cuda.is_available() else 'cpu')
+    # args.device = torch.device('cuda:1' if args.gpus[0] >= 0 and torch.cuda.is_available() else 'cpu')
 
     args.en_distrubuted = False
-    args.device = torch.device('cuda:1')
-    
+    args.device = torch.device('cuda:4')
+
     # Training 
     args.skip_path = False
     args.skip_hop = False
