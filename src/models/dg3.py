@@ -107,7 +107,11 @@ class DeepGate3(nn.Module):
 
         #Similarity
         self.sim = nn.CosineSimilarity(dim=1, eps=1e-6)
-        self.proj_ttsim = MLP(
+        self.proj_gate_ttsim = MLP(
+            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=self.args.token_emb, 
+            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
+        )
+        self.proj_hop_ttsim = MLP(
             dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=self.args.token_emb, 
             num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
         )
@@ -161,7 +165,10 @@ class DeepGate3(nn.Module):
         #=========================================================
             
         #gate-level pretrain task : predict pari-wise TT sim
-        gate_tt_sim = self.sim(hf[g.tt_pair_index[0]],hf[g.tt_pair_index[1]])
+        gate_hf1 = self.proj_gate_ttsim(hf[g.tt_pair_index[0]])
+        gate_hf2 = self.proj_gate_ttsim(hf[g.tt_pair_index[1]])
+        gate_tt_sim = self.sim(gate_hf1, gate_hf2)
+        # gate_tt_sim = self.sim(hf[g.tt_pair_index[0]],hf[g.tt_pair_index[1]])
 
         #gate-level pretrain task : predict global probability
         prob = self.readout_prob(hf)
@@ -287,8 +294,8 @@ class DeepGate3(nn.Module):
             hop_hf = hop_hf[:,0]
 
             #pair-wise TT sim prediction
-            hop_hf1 = self.proj_ttsim(hop_hf[g.hop_forward_index[g.hop_pair_index[0]]])
-            hop_hf2 = self.proj_ttsim(hop_hf[g.hop_forward_index[g.hop_pair_index[1]]])
+            hop_hf1 = self.proj_hop_ttsim(hop_hf[g.hop_forward_index[g.hop_pair_index[0]]])
+            hop_hf2 = self.proj_hop_ttsim(hop_hf[g.hop_forward_index[g.hop_pair_index[1]]])
 
             hop_tt_sim = self.sim(hop_hf1, hop_hf2)
             # truth table prediction

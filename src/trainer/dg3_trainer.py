@@ -281,11 +281,11 @@ class Trainer():
         pred_cls = torch.argmax(prob,dim=1)
         con_acc = torch.sum(pred_cls==batch.connect_label) * 1.0 / prob.shape[0]
         #gate pair wise tt sim
-        pred_tt_sim = zero_normalization(result_dict['node']['tt_sim']).to(self.device)
-        tt_sim = zero_normalization(batch.tt_sim).to(self.device)
-        l_gate_ttsim = self.l1_loss(pred_tt_sim, tt_sim)
-        # pred_tt_sim = (result_dict['node']['tt_sim']+1)/2
-        # l_gate_ttsim = self.l1_loss(pred_tt_sim, batch.tt_sim.to(self.device))
+        # pred_tt_sim = zero_normalization(result_dict['node']['tt_sim']).to(self.device)
+        # tt_sim = zero_normalization(batch.tt_sim).to(self.device)
+        # l_gate_ttsim = self.l1_loss(pred_tt_sim, tt_sim)
+        pred_tt_sim = (result_dict['node']['tt_sim']+1)/2
+        l_gate_ttsim = self.l1_loss(pred_tt_sim, batch.tt_sim.to(self.device))
         
 
         #=========================================================
@@ -317,18 +317,18 @@ class Trainer():
         hamming_dist = torch.mean(torch.abs(pred_tt.float()-batch.hop_tt.float())).cpu()
 
         # pair-wise tt sim
-        pred_hop_ttsim = zero_normalization(result_dict['hop']['tt_sim']).to(self.device)
-        hop_ttsim = zero_normalization(batch.hop_tt_sim).to(self.device)
-        l_hop_ttsim = self.l1_loss(pred_hop_ttsim, hop_ttsim)
-        # pred_hop_ttsim = (result_dict['hop']['tt_sim'].squeeze(-1)+1)/2
-        # l_hop_ttsim = self.l1_loss(pred_hop_ttsim, batch.hop_tt_sim.to(self.device))
+        # pred_hop_ttsim = zero_normalization(result_dict['hop']['tt_sim']).to(self.device)
+        # hop_ttsim = zero_normalization(batch.hop_tt_sim).to(self.device)
+        # l_hop_ttsim = self.l1_loss(pred_hop_ttsim, hop_ttsim)
+        pred_hop_ttsim = (result_dict['hop']['tt_sim'].squeeze(-1)+1)/2
+        l_hop_ttsim = self.l1_loss(pred_hop_ttsim, batch.hop_tt_sim.to(self.device))
 
         #pair wise GED
-        pred_hop_GED = zero_normalization(result_dict['hop']['GED']).to(self.device)
-        hop_GED = zero_normalization(1 - batch.hop_ged).to(self.device)
-        l_hop_GED = self.l1_loss(pred_hop_GED, hop_GED)
-        # pred_hop_GED = (result_dict['hop']['GED'].squeeze(-1)+1)/2
-        # l_hop_GED = self.l1_loss(pred_hop_GED, batch.hop_ged.to(self.device))
+        # pred_hop_GED = zero_normalization(result_dict['hop']['GED']).to(self.device)
+        # hop_GED = zero_normalization(1 - batch.hop_ged).to(self.device)
+        # l_hop_GED = self.l1_loss(pred_hop_GED, hop_GED)
+        pred_hop_GED = (result_dict['hop']['GED'].squeeze(-1)+1)/2
+        l_hop_GED = self.l1_loss(pred_hop_GED, batch.hop_ged.to(self.device))
 
         #hop num prediction
         l_hop_num = self.l1_loss(result_dict['hop']['area'].squeeze(-1), torch.sum(batch.hop_nodes_stats,dim=1).to(self.device))
