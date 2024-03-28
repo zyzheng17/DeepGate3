@@ -154,7 +154,7 @@ class DeepGate3(nn.Module):
         # Refine-Transformer 
         if self.tf_arch != 'baseline':
 
-            hf_tf, hs_tf = self.transformer(g, hs, hf)
+            hf_tf, hs_tf = self.transformer(g, hf, hs)
             #function
             hf = hf + hf_tf
             #structure

@@ -14,8 +14,8 @@ import copy
 
 
 from .mha import TransformerEncoderBlock
-from utils.dag_utils import subgraph, subgraph_hop
-from bert_model.transformer import TransformerBlock
+# from utils.dag_utils import subgraph, subgraph_hop
+# from bert_model.transformer import TransformerBlock
 
 class Hop_Transformer(nn.Sequential):
     def __init__(self, args, hidden=128, n_layers=12, attn_heads=4, dropout=0.1):
@@ -24,7 +24,7 @@ class Hop_Transformer(nn.Sequential):
         self.args = args
         self.hidden =hidden
         # Model
-        self.mask_token = nn.Parameter(torch.randn([args.token_emb,]))
+        # self.mask_token = nn.Parameter(torch.randn([args.token_emb,]))
         # self.tf = TransformerEncoderBlock(args, args.token_emb*2).to(self.device)
         # TransformerEncoderLayer = nn.TransformerEncoderLayer(d_model=args.token_emb*2, nhead=args.head_num, dropout=0.1, batch_first=True)
         # self.transformer_blocks = TransformerEncoderLayer
@@ -38,7 +38,7 @@ class Hop_Transformer(nn.Sequential):
     def clean_record(self):
         self.record = {}
         
-    def forward(self, g, hs, hf):
+    def forward(self, g, hf, hs):
         hf = hf.detach().clone()
         hs = hs.detach().clone()
         no_hops = g.hop_nodes.shape[0]
@@ -54,18 +54,27 @@ class Hop_Transformer(nn.Sequential):
             no_level_hops = len(level_hop_index)
             if no_level_hops == 0:
                 continue
-            
             ########################################################
             # For-loop Implementation
             ########################################################
-            node_states = torch.cat([hs, hf], dim=1)
-            for hop_idx in range(no_level_hops):
-                no_nodes_in_hop = g.hop_nodes_stats[level_hop_index[hop_idx]].sum()
-                hop_nodes = g.hop_nodes[level_hop_index[hop_idx]][:no_nodes_in_hop]
-                hop_node_states = node_states[hop_nodes]
-                hop_node_states = hop_node_states.unsqueeze(0)
-                hf_states = self.function_transformer(hop_node_states, src_key_padding_mask=None, src_mask=None)
-                hf[hop_nodes] += hf_states[:, :no_nodes_in_hop, self.args.token_emb:].squeeze(0)
+            # node_states = torch.cat([hs, hf], dim=1)
+            node_states = hf + hs
+            node_idx = g.hop_nodes[level_hop_index]
+            hop_node_emb = node_states[node_idx]
+            masks = g.hop_nodes_stats[level_hop_index]
+            masks = torch.where(masks==1,False,True)
+            hf_states = self.function_transformer(hop_node_emb, src_key_padding_mask=masks)
+            hs_states = self.structure_transformer(hop_node_emb, src_key_padding_mask=masks)
+            hop_node_idx = node_idx[g.hop_nodes_stats[level_hop_index]==1]
+            hf[hop_node_idx] = hf_states[g.hop_nodes_stats[level_hop_index]==1]
+            hs[hop_node_idx] = hs_states[g.hop_nodes_stats[level_hop_index]==1]
+            # for hop_idx in range(no_level_hops):
+            #     no_nodes_in_hop = g.hop_nodes_stats[level_hop_index[hop_idx]].sum()
+            #     hop_nodes = g.hop_nodes[level_hop_index[hop_idx]][:no_nodes_in_hop]
+            #     hop_node_states = node_states[hop_nodes]
+            #     hop_node_states = hop_node_states.unsqueeze(0)
+            #     hf_states = self.function_transformer(hop_node_states, src_key_padding_mask=None, src_mask=None)
+            #     hf[hop_nodes] += hf_states[:, :no_nodes_in_hop, self.args.token_emb:].squeeze(0)
             
             
             ########################################################
@@ -97,5 +106,5 @@ class Hop_Transformer(nn.Sequential):
             #     no_nodes_in_hop = len(hop_valid_nodes)
             #     hf[hop_valid_nodes] += hop_node_states[hop_idx, :no_nodes_in_hop, self.args.token_emb:]            
             
-        return hf 
+        return hf,hs
                 

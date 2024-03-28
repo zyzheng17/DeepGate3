@@ -23,7 +23,7 @@ def get_parse_args():
     parser.add_argument('--dropout', default=0.1, type=float)
     
     # Transformer 
-    parser.add_argument('--tf_arch', default='plain', type=str)
+    parser.add_argument('--tf_arch', default='hop', type=str)
     parser.add_argument('--TF_depth', default=4, type=int)
     parser.add_argument('--token_emb', default=128, type=int)
     parser.add_argument('--tf_emb_size', default=128, type=int)
@@ -37,7 +37,7 @@ def get_parse_args():
     parser.add_argument('--act_layer', default='relu', type=str)
     
     # Train
-    parser.add_argument('--en_distrubuted', action='store_true')
+    parser.add_argument('--en_distrubuted', default=False,action='store_true')
     parser.add_argument('--batch_size', default=4, type=int)
     parser.add_argument('--resume', action='store_true', default=False)
     parser.add_argument('--epoch', default=200, type=int)
@@ -72,7 +72,7 @@ def get_parse_args():
         args.en_distrubuted = True
     else:
         args.en_distrubuted = False
-    args.device = torch.device('cuda:1' if args.gpus[0] >= 0 and torch.cuda.is_available() else 'cpu')
+    args.device = torch.device(f'cuda:{args.gpus[0]}' if args.gpus[0] >= 0 and torch.cuda.is_available() else 'cpu')
 
     # args.en_distrubuted = False
     # args.device = torch.device('cuda:4')
