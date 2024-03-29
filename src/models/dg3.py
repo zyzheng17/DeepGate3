@@ -246,11 +246,11 @@ class DeepGate3(nn.Module):
         #=========================================================
         if skip_hop:
             hop_tt = torch.zeros(len(g.hop_po), 64).to(hs.device)
-            hop_tt_sim = torch.zeros(len(g.hop_pair_index[0])).to(hs.device)
+            hop_tt_sim = torch.tensor(range(len(g.hop_pair_index[0])), dtype=float).to(hs.device)
             pred_hop_num = torch.zeros(len(g.hop_po)).to(hs.device)
             pred_hop_level = torch.zeros(len(g.hop_po)).to(hs.device)
             on_hop_logits = torch.zeros(len(g.ninh_node_index)).to(hs.device)
-            pred_GED = torch.zeros(len(g.hop_pair_index[0])).to(hs.device)
+            pred_GED = torch.tensor(range(len(g.hop_pair_index[0])), dtype=float).to(hs.device)
         else:
             #graph-level pretrain task : predict truth table & pair-wise TT sim
             hop_hf = []
