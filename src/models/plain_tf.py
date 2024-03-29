@@ -41,7 +41,7 @@ class Plain_Transformer(nn.Sequential):
 
 
     # def forward(self, g, subgraph):
-    def forward(self, g, hs, hf):
+    def forward(self, g, hf, hs):
         hf = hf.detach()
         hs = hs.detach()
         bs = g.batch.max().item() + 1
