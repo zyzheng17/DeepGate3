@@ -11,6 +11,7 @@ src/simulator/simulator
 build
 dist
 *.egg-info
+*.log
 
 exp
 tmp

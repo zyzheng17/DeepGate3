@@ -297,7 +297,7 @@ class DeepGate3(nn.Module):
                 hf_mask.insert(0,1)
                 hf_mask.append(1)
                 hf_masks.append(torch.tensor(hf_mask))
-
+            
             hop_hf = torch.stack(hop_hf) #bs seq_len hidden
             pos = torch.arange(hop_hf.shape[1]).unsqueeze(0).repeat(hop_hf.shape[0],1).to(hf.device)
             hop_hf = hop_hf + self.hf_PositionalEmbedding(pos)
