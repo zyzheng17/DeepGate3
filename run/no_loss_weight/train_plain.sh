@@ -1,6 +1,6 @@
 #!/bin/bash
 NUM_PROC=2
-GPUS=2,3
+GPUS=0,1
 
 python3 -m torch.distributed.launch --nproc_per_node=$NUM_PROC --master_port=29502 ./src/train_dg3.py \
  --exp_id plain_full \

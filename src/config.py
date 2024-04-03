@@ -17,14 +17,15 @@ def get_parse_args():
     parser.add_argument('--hop_ratio', default=0.15, type=float)
     parser.add_argument('--k_hop', default=4, type=int)
     parser.add_argument('--max_hop_pi', default=6, type=int)
+    parser.add_argument('--load_npz', default='', type=str)
     
     # Model 
-    parser.add_argument('--pretrained_model_path', default='./DeepGate3-Transformer/trained/model_last.pth')
+    parser.add_argument('--pretrained_model_path', default='./trained/model_last.pth')
     parser.add_argument('--dropout', default=0.1, type=float)
     
     # Transformer 
     parser.add_argument('--tf_arch', default='plain', type=str)
-    parser.add_argument('--TF_depth', default=4, type=int)
+    parser.add_argument('--TF_depth', default=12, type=int)
     parser.add_argument('--token_emb', default=128, type=int)
     parser.add_argument('--tf_emb_size', default=128, type=int)
     parser.add_argument('--head_num', default=8, type=int)
