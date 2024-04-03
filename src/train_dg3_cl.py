@@ -63,34 +63,34 @@ if __name__ == '__main__':
     })
     
     # # Stage 1
-    # trainer.set_training_args(loss_weight={
-    #     'gate_prob': 2, 
-    #     'gate_lv': 0.5, 
-    #     'gate_con': 1, 
-    #     'gate_ttsim': 0, 
-    #     'hop_tt': 0,
-    #     'hop_ttsim': 0, 
-    #     'hop_GED': 0,
-    #     'hop_num': 0, 
-    #     'hop_lv': 0, 
-    #     'hop_onhop': 0, 
-    # })
-    # trainer.train(50, train_dataset, val_dataset)
+    trainer.set_training_args(loss_weight={
+        'gate_prob': 2, 
+        'gate_lv': 0.5, 
+        'gate_con': 1, 
+        'gate_ttsim': 0, 
+        'hop_tt': 0,
+        'hop_ttsim': 0, 
+        'hop_GED': 0,
+        'hop_num': 0, 
+        'hop_lv': 0, 
+        'hop_onhop': 0, 
+    })
+    trainer.train(50, train_dataset, val_dataset)
     
     # # Stage 2
-    # trainer.set_training_args(loss_weight={
-    #     'gate_prob': 2, 
-    #     'gate_lv': 0.3, 
-    #     'gate_con': 1, 
-    #     'gate_ttsim': 1, 
-    #     'hop_tt': 0,
-    #     'hop_ttsim': 0, 
-    #     'hop_GED': 0,
-    #     'hop_num': 0, 
-    #     'hop_lv': 0, 
-    #     'hop_onhop': 0, 
-    # })
-    # trainer.train(50, train_dataset, val_dataset)
+    trainer.set_training_args(loss_weight={
+        'gate_prob': 2, 
+        'gate_lv': 0.3, 
+        'gate_con': 1, 
+        'gate_ttsim': 1, 
+        'hop_tt': 0,
+        'hop_ttsim': 0, 
+        'hop_GED': 0,
+        'hop_num': 0, 
+        'hop_lv': 0, 
+        'hop_onhop': 0, 
+    })
+    trainer.train(50, train_dataset, val_dataset)
     
     # Stage 3
     trainer.set_training_args(loss_weight={
