@@ -91,12 +91,16 @@ class Hop_Transformer(nn.Sequential):
             hf_states = self.function_transformer(hop_node_emb, src_key_padding_mask=masks)
             
             # Stone: Modify the structure transformer
-            hs_states = self.structure_transformer(hs[node_idx], src_key_padding_mask=masks)
-            # hs_states = self.structure_transformer(hop_node_emb, src_key_padding_mask=masks)
+            # hs_states = self.structure_transformer(hs[node_idx], src_key_padding_mask=masks)
+            hs_states = self.structure_transformer(hop_node_emb, src_key_padding_mask=masks)
             
             hop_node_idx = node_idx[g.winhop_nodes_stats[level_hop_index]==1]
-            hf[hop_node_idx] = hf_states[g.winhop_nodes_stats[level_hop_index]==1]
-            hs[hop_node_idx] = hs_states[g.winhop_nodes_stats[level_hop_index]==1]
+            hop_node_set = list(set(hop_node_idx.cpu().numpy()))
+            for emb_idx in hop_node_set:
+                hf[emb_idx] = torch.mean(hf_states[torch.logical_and(g.winhop_nodes_stats[level_hop_index]==1, g.winhop_nodes[level_hop_index]==emb_idx)],dim=0)
+                hs[emb_idx] = torch.mean(hs_states[torch.logical_and(g.winhop_nodes_stats[level_hop_index]==1, g.winhop_nodes[level_hop_index]==emb_idx)],dim=0)
+            # hf[hop_node_idx] = hf_states[torch.logical_and(g.winhop_nodes_stats[level_hop_index]==1, g.winhop_nodes[level_hop_index]==node_idx)]
+            # hs[hop_node_idx] = hs_states[torch.logical_and(g.winhop_nodes_stats[level_hop_index]==1, g.winhop_nodes[level_hop_index]==node_idx)]
             
         return hf,hs
                 
