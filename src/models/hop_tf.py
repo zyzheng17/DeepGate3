@@ -41,7 +41,9 @@ class Hop_Transformer(nn.Sequential):
         hf = hf.detach().clone()
         hs = hs.detach().clone()
         no_hops = g.winhop_nodes.shape[0]
-        max_hop_size = g.winhop_nodes.shape[1]
+        max_hop_size = torch.sum(g.winhop_nodes_stats, dim=1).max()
+        g.winhop_nodes = g.winhop_nodes[:, :max_hop_size]
+        g.winhop_nodes_stats = g.winhop_nodes_stats[:, :max_hop_size]
         
         # mask po function embedding
         # hf[g.winhop_po.squeeze()] = self.mask_token
@@ -49,34 +51,6 @@ class Hop_Transformer(nn.Sequential):
         # Hop TF
         for level in range(g.forward_level.max()):
             hop_mask = g.forward_level[g.winhop_po] == level
-            
-            # all_level_hop_index = torch.nonzero(hop_mask.squeeze()).view(-1)
-            # max_batch_size = 1
-            # batch_ptr = 0 
-            # while batch_ptr < len(all_level_hop_index):
-            #     level_hop_index = all_level_hop_index[batch_ptr:batch_ptr+max_batch_size]
-            #     batch_ptr += max_batch_size
-                
-            #     no_level_hops = len(level_hop_index)
-            #     if no_level_hops == 0:
-            #         continue
-                
-            #     # node_states = torch.cat([hs, hf], dim=1)
-            #     node_states = hf + hs
-            #     node_idx = g.winhop_nodes[level_hop_index]
-            #     hop_node_emb = node_states[node_idx]
-            #     masks = g.winhop_nodes_stats[level_hop_index]
-            #     masks = torch.where(masks==1,False,True)
-            #     hf_states = self.function_transformer(hop_node_emb, src_key_padding_mask=masks)
-                
-            #     # Stone: Modify the structure transformer
-            #     hs_states = self.structure_transformer(hs[node_idx], src_key_padding_mask=masks)
-            #     # hs_states = self.structure_transformer(hop_node_emb, src_key_padding_mask=masks)
-                
-            #     hop_node_idx = node_idx[g.winhop_nodes_stats[level_hop_index]==1]
-            #     hf[hop_node_idx] = hf_states[g.winhop_nodes_stats[level_hop_index]==1]
-            #     hs[hop_node_idx] = hs_states[g.winhop_nodes_stats[level_hop_index]==1]
-            
             level_hop_index = torch.nonzero(hop_mask.squeeze()).view(-1)
             no_level_hops = len(level_hop_index)
             if no_level_hops == 0:

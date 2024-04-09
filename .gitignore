@@ -16,6 +16,7 @@ dist
 exp
 tmp
 data
+bak
 
 tmp.py
 debug.py
