@@ -30,11 +30,9 @@ class Plain_Transformer(nn.Sequential):
     def __init__(self, args, hidden=128, n_layers=12, attn_heads=4, dropout=0.1):
         super().__init__()
         self.args = args
-        # self.tf_encoder_layers = [TransformerEncoderBlock(args).to(self.args.device) for _ in range(TF_depth)]
         self.hidden = hidden
         self.record = {}
         self.num_head = attn_heads
-        self.mask_token = nn.Parameter(torch.randn([hidden,]))
         self.max_length = 512
         TransformerEncoderLayer = nn.TransformerEncoderLayer(d_model=self.hidden, nhead=attn_heads, dropout=dropout, batch_first=True)
         self.function_transformer = nn.TransformerEncoder(TransformerEncoderLayer, num_layers=n_layers)
@@ -43,7 +41,7 @@ class Plain_Transformer(nn.Sequential):
 
 
     # def forward(self, g, subgraph):
-    def forward(self, g, hs, hf):
+    def forward(self, g, hf, hs):
         hf = hf.detach()
         hs = hs.detach()
         bs = g.batch.max().item() + 1
@@ -54,9 +52,6 @@ class Plain_Transformer(nn.Sequential):
         #corr-mask: bs,len,len
         bs,l1,l2 = corr_m.shape
         corr_m = corr_m.unsqueeze(1).repeat(1,self.num_head,1,1).reshape(bs*self.num_head,l1,l2)
-        
-        #mask po function embedding
-        # hf[g.hop_po.squeeze()] = self.mask_token
         
         mask_hop_states = torch.zeros([bs,self.max_length,self.hidden]).to(hf.device)
         padding_mask = torch.ones([bs,self.max_length]).to(hf.device)

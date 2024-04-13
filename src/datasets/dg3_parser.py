@@ -40,6 +40,8 @@ class OrderedData(Data):
             return args[0]['hop_forward_index'].shape[0]
         elif key == 'hop_pi' or key == 'hop_po' or key == 'hop_nodes': 
             return self.num_nodes
+        elif key == 'winhop_po' or key == 'winhop_nodes':
+            return self.num_nodes
         elif key == 'hop_pair_index' or key == 'hop_forward_index':
             return args[0]['hop_forward_index'].shape[0]
         elif key == 'path_forward_index':
@@ -59,6 +61,8 @@ class OrderedData(Data):
         elif key == "connect_pair_index" or key == 'hop_pair_index':
             return 1
         elif key == 'hop_pi' or key == 'hop_po' or key == 'hop_pi_stats' or key == 'hop_tt' or key == 'no_hops':
+            return 0
+        elif key == 'winhop_po' or key == 'winhop_nodes' or key == 'winhop_nodes_stats' or key == 'winhop_lev':
             return 0
         elif key == 'hop_nodes' or key == 'hop_nodes_stats':
             return 0
@@ -120,7 +124,7 @@ class NpzParser():
         def download(self):
             pass
 
-        def process(self):
+        def process_circuits(self):
             data_list = []
             tot_pairs = 0
             circuits = read_npz_file(self.circuit_path)['circuits'].item()
@@ -337,10 +341,48 @@ class NpzParser():
                 data_list.append(graph)
                 tot_time = time.time() - start_time
                 
-                if self.debug and cir_idx > 50:
+                if self.debug and cir_idx > 40:
                     break
 
             data, slices = self.collate(data_list)
             torch.save((data, slices), self.processed_paths[0])
             print('[INFO] Inmemory dataset save: ', self.processed_paths[0])
             print('Total Circuits: {:} Total pairs: {:}'.format(len(data_list), tot_pairs))
+        
+        def process_npz(self, npz_path):
+            data_list = []
+            tot_pairs = 0
+            circuits = read_npz_file(npz_path)['circuits'].item()
+            tot_time = 0
+            
+            for cir_idx, cir_name in enumerate(circuits):
+                start_time = time.time()
+                print('Parse: {}, {:} / {:} = {:.2f}%, Time: {:.2f}s, ETA: {:.2f}s, Curr Size: {:}'.format(
+                    cir_name, cir_idx, len(circuits), cir_idx / len(circuits) * 100, 
+                    tot_time, tot_time * (len(circuits) - cir_idx), 
+                    len(data_list)
+                ))
+                
+                graph = OrderedData()
+                for key in circuits[cir_name].keys():
+                    if 'prob' in key or 'sim' in key or 'ratio' in key or 'ged' in key:
+                        graph[key] = torch.tensor(circuits[cir_name][key], dtype=torch.float)
+                    else:
+                        graph[key] = torch.tensor(circuits[cir_name][key], dtype=torch.long)
+                graph.name = cir_name
+                data_list.append(graph)
+                tot_time = time.time() - start_time
+                
+                if self.debug and cir_idx > 40:
+                    break
+                
+            data, slices = self.collate(data_list)
+            torch.save((data, slices), self.processed_paths[0])
+            print('[INFO] Inmemory dataset save: ', self.processed_paths[0])
+            print('Total Circuits: {:} Total pairs: {:}'.format(len(data_list), tot_pairs))
+                
+        def process(self):
+            if self.args.load_npz == '':
+                self.process_circuits()
+            else:
+                self.process_npz(self.args.load_npz)

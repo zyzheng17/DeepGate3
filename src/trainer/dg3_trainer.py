@@ -4,7 +4,7 @@ import torch
 from torch import nn
 import time
 import random
-from progress.bar import Bar
+# from progress.bar import Bar
 from torch_geometric.loader import DataLoader
 import copy
 # from deepgate.arch.mlp import MLP
@@ -147,7 +147,7 @@ class Trainer():
         if self.distributed:
             if 'LOCAL_RANK' in os.environ:
                 self.local_rank = int(os.environ['LOCAL_RANK'])
-            self.device = 'cuda:%d' % self.local_rank
+            self.device = 'cuda:%d' % self.args.gpus[self.local_rank]
             torch.cuda.set_device(self.local_rank)
             torch.distributed.init_process_group(backend='nccl', init_method='env://')
             self.world_size = torch.distributed.get_world_size()
@@ -157,6 +157,10 @@ class Trainer():
             ))
         else:
             print('Training in single device: ', self.device)
+            
+        # Train 
+        self.skip_path = False
+        self.skip_hop = False
         
         # Loss 
         self.consis_loss_func = nn.MSELoss().to(self.device)
@@ -179,19 +183,23 @@ class Trainer():
         self.model = model.to(self.device)
         self.model_epoch = 0
         
-        
         # Temp Data 
         self.stru_sim_tmp = {}
         
         # Logger
         if self.local_rank == 0:
             self.logger = Logger(self.log_path)
+            
+        # Resume 
+        if self.args.resume:
+            stats = self.resume()
+            assert stats
     
     def set_training_args(self, loss_weight={}, lr=-1, lr_step=-1, device='null'):
         if len(loss_weight) > 0:
             for key in loss_weight:
                 self.loss_weight[key] = loss_weight[key]
-                print('[INFO] Update {} weight from {} to {}'.format(key, self.loss_weight[key], loss_weight[key]))
+                print('[INFO] Update {} weight from {}'.format(key, loss_weight[key]))
         if lr > 0 and lr != self.lr:
             print('[INFO] Update learning rate from {} to {}'.format(self.lr, lr))
             self.lr = lr
@@ -208,6 +216,23 @@ class Trainer():
             # self.clf_loss = self.clf_loss.to(self.device)
             self.optimizer = self.optimizer
             # self.readout_rc = self.readout_rc.to(self.device)
+        # Check skip 
+        tmp_sum = 0
+        for key in ["path_onpath", "path_len", "path_and"]:
+            tmp_sum += self.loss_weight[key]
+        if tmp_sum == 0:
+            self.skip_path = True
+            print('[INFO] Skip path loss')
+        else:
+            self.skip_path = False
+        tmp_sum = 0
+        for key in ["hop_tt", "hop_ttsim", "hop_GED", "hop_num", "hop_lv", "hop_onhop"]:
+            tmp_sum += self.loss_weight[key]
+        if tmp_sum == 0:
+            self.skip_hop = True
+            print('[INFO] Skip hop loss')
+        else:
+            self.skip_hop = False
 
     def save(self, filename):
         path = os.path.join(self.log_dir, filename)
@@ -240,7 +265,7 @@ class Trainer():
 
     def run_batch(self, batch):
 
-        result_dict = self.model(batch)
+        result_dict = self.model(batch, self.skip_path, self.skip_hop)
         
         #=========================================================
         #======================GATE-level=========================
@@ -256,8 +281,14 @@ class Trainer():
         pred_cls = torch.argmax(prob,dim=1)
         con_acc = torch.sum(pred_cls==batch.connect_label) * 1.0 / prob.shape[0]
         #gate pair wise tt sim
-        pred_tt_sim = (result_dict['node']['tt_sim']+1)/2
+        # pred_tt_sim = zero_normalization(result_dict['node']['tt_sim']).to(self.device)
+        # tt_sim = zero_normalization(batch.tt_sim).to(self.device)
+        # l_gate_ttsim = self.l1_loss(pred_tt_sim, tt_sim)
+
+        # pred_tt_sim = (result_dict['node']['tt_sim']+1)/2
+        pred_tt_sim = result_dict['node']['tt_sim'].squeeze()
         l_gate_ttsim = self.l1_loss(pred_tt_sim, batch.tt_sim.to(self.device))
+        
 
         #=========================================================
         #======================PATH-level=========================
@@ -265,6 +296,8 @@ class Trainer():
         # on path prediction
         pred_on_path_prob = nn.Sigmoid()(result_dict['path']['on_path']).squeeze(-1).to(self.device)
         l_path_onpath = self.bce(pred_on_path_prob,batch.ninp_labels.float())
+        pred_on_path_label = torch.where(pred_on_path_prob>0.5,1,0)
+        on_path_acc = (pred_on_path_label==batch.ninp_labels).sum()*1.0/pred_on_path_label.shape[0]
 
         #path length prediction
         l_path_len = self.l1_loss(result_dict['path']['length'].squeeze(-1), batch.paths_len.to(self.device))
@@ -286,11 +319,21 @@ class Trainer():
         hamming_dist = torch.mean(torch.abs(pred_tt.float()-batch.hop_tt.float())).cpu()
 
         # pair-wise tt sim
-        pred_hop_ttsim = (result_dict['hop']['tt_sim'].squeeze(-1)+1)/2
+        # pred_hop_ttsim = zero_normalization(result_dict['hop']['tt_sim']).to(self.device)
+        # hop_ttsim = zero_normalization(batch.hop_tt_sim).to(self.device)
+        # l_hop_ttsim = self.l1_loss(pred_hop_ttsim, hop_ttsim)
+
+        # pred_hop_ttsim = (result_dict['hop']['tt_sim'].squeeze(-1)+1)/2
+        pred_hop_ttsim = result_dict['hop']['tt_sim'].squeeze(-1)
         l_hop_ttsim = self.l1_loss(pred_hop_ttsim, batch.hop_tt_sim.to(self.device))
 
         #pair wise GED
-        pred_hop_GED = (result_dict['hop']['GED'].squeeze(-1)+1)/2
+        # pred_hop_GED = zero_normalization(result_dict['hop']['GED']).to(self.device)
+        # hop_GED = zero_normalization(1 - batch.hop_ged).to(self.device)
+        # l_hop_GED = self.l1_loss(pred_hop_GED, hop_GED)
+
+        # pred_hop_GED = (result_dict['hop']['GED'].squeeze(-1)+1)/2
+        pred_hop_GED = result_dict['hop']['GED'].squeeze(-1)
         l_hop_GED = self.l1_loss(pred_hop_GED, batch.hop_ged.to(self.device))
 
         #hop num prediction
@@ -302,6 +345,9 @@ class Trainer():
         #hop on-hop prediction
         pred_on_hop_prob = nn.Sigmoid()(result_dict['hop']['on_hop']).squeeze(-1).to(self.device)
         l_hop_onhop = self.bce(pred_on_hop_prob,batch.ninh_labels.float())
+        pred_on_hop_label = torch.where(pred_on_hop_prob>0.5,1,0)
+        on_hop_acc = (pred_on_hop_label==batch.ninh_labels).sum()*1.0/pred_on_hop_label.shape[0]
+
 
         # Loss 
         sum_weight = 0
@@ -321,6 +367,7 @@ class Trainer():
             l_hop_lv * self.loss_weight['hop_lv'] + \
             l_hop_onhop * self.loss_weight['hop_onhop']
         loss = loss / sum_weight
+
         loss_status = {
             'gate_prob': l_gate_prob,
             'gate_lv': l_gate_lv,
@@ -337,68 +384,16 @@ class Trainer():
             'hop_onhop': l_hop_onhop,
             'loss' : loss
         }
+        metric_status = {
+            'hamming_dist': hamming_dist,
+            'connect_acc': con_acc,
+            'on_path_acc': on_path_acc,
+            'on_hop_acc': on_hop_acc,
+
+        }
         
         # return loss_status, hamming_dist
-        return loss_status, con_acc, hamming_dist
-
-    def run_batch_structure(self, batch):
-        
-        hs, hf, pred_level, pred_connect, pred_hop_num = self.model(batch)
-        
-        # level prediction
-        l_slv = self.l1_loss(pred_level.squeeze(-1), batch.forward_level.to(self.device))
-
-        #connect classification
-        l_scon = self.ce(pred_connect,batch.connect_label)
-        prob = self.softmax(pred_connect)
-        pred_cls = torch.argmax(prob,dim=1)
-        acc = torch.sum(pred_cls==batch.connect_label) * 1.0 / prob.shape[0]
-
-        #hop num prediction
-        l_snum = self.l1_loss(pred_hop_num.squeeze(-1), torch.sum(batch.hop_nodes_stats,dim=1))
-
-        # hamming_dist = torch.mean(torch.abs(pred_tt.float()-batch.hop_tt.float()))
-        
-        loss_status = {
-            'level_loss': l_slv,
-            'connect_loss': l_scon,
-            'hop_num_loss': l_snum,
-        }
-        
-        return loss_status, acc
-
-    def run_batch_func(self, batch):
-        
-        hs, hf, pred_prob, pred_hop_tt = self.model(batch)
-        
-        if torch.isnan(pred_hop_tt).sum() > 0:
-            print('nan in pred_hop_tt')
-            print(batch.name)
-            exit(0)
-        
-        # DG2 Tasks
-        l_fprob = self.l1_loss(pred_prob, batch.prob.unsqueeze(1).to(self.device))
-        # pred_tt_sim = torch.cosine_similarity(hf[batch.tt_pair_index[0]], hf[batch.tt_pair_index[1]], eps=1e-8)
-        # pred_tt_sim = normalize_1(pred_tt_sim).float().to(self.device)
-        # tt_sim = normalize_1(batch.tt_sim).float().to(self.device)
-        # l_fttsim = self.l1_loss(pred_tt_sim, tt_sim)
-        
-        # Graph mask prediction 
-        pred_hop_tt_prob = nn.Sigmoid()(pred_hop_tt).to(self.device)
-        pred_tt = torch.where(pred_hop_tt_prob > 0.5, 1, 0)
-        pred_hop_tt_prob = torch.clamp(pred_hop_tt_prob, 1e-6, 1-1e-6)
-        l_ftt = self.bce(pred_hop_tt_prob, batch.hop_tt.float())
-        hamming_dist = torch.mean(torch.abs(pred_tt.float()-batch.hop_tt.float())).cpu()
-        # hamming_dist = torch.mean(torch.abs(pred_tt.float()-batch.hop_tt.float()))
-        
-        loss_status = {
-            'prob': l_fprob,
-            'tt_sim': 0,
-            'tt_cls': l_ftt,
-            'g_sim': 0,
-        }
-        
-        return loss_status, hamming_dist
+        return loss_status, metric_status
 
     def train(self, num_epoch, train_dataset, val_dataset):
         # Distribute Dataset
@@ -438,29 +433,44 @@ class Trainer():
                     dataset = val_dataset
                     self.model.eval()
                     self.model.to(self.device)
-                if self.local_rank == 0:
-                    bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
+                # if self.local_rank == 0:
+                #     bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
                 hamming_list = []
                 acc_list = []
                 loss_list = []
-                if self.local_rank == 0:
-                    bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
-
+                # if self.local_rank == 0:
+                #     bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
+                overall_dict = {
+                    'gate_prob': [],
+                    'gate_lv': [],
+                    'gate_con': [],
+                    'gate_ttsim': [],
+                    'path_onpath': [],
+                    'path_len': [],
+                    'path_and': [],
+                    'hop_tt': [],
+                    'hop_ttsim': [],
+                    'hop_GED': [],
+                    'hop_num': [],
+                    'hop_lv': [],
+                    'hop_onhop': [],
+                    'loss' : [],
+                    'hamming_dist': [],
+                    'connect_acc': [],
+                    'on_path_acc': [],
+                    'on_hop_acc': [],
+                }
                 for iter_id, batch in enumerate(dataset):
                     time_stamp = time.time()
                     batch = batch.to(self.device)                    
-                    #function
-                    # loss_dict, hamming_dist = self.run_batch_func(batch)
-                    #structure
-                    # loss_dict, acc = self.run_batch_structure(batch)
-                    #function & structure
-                    loss_dict, acc, hamming_dist = self.run_batch(batch)
-                    
-                    if len(loss_dict) == 0:
-                        continue
-                    acc_list.append(acc)
-                    hamming_list.append(hamming_dist)
-                    loss_list.append(loss_dict['loss'])
+
+                    loss_dict, metric_dict = self.run_batch(batch)
+
+                    for loss_key in loss_dict:
+                        overall_dict[loss_key].append(loss_dict[loss_key].detach().cpu().item())
+                    for metric_key in metric_dict:
+                        overall_dict[metric_key].append(metric_dict[metric_key].detach().cpu())
+
                     loss = loss_dict['loss']
 
                     if phase == 'train':
@@ -482,25 +492,59 @@ class Trainer():
                         #         bar.suffix += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
                         # bar.suffix += ' | hamming_dist: {:.4f}'.format(hamming_dist)
                         # bar.next()
-                        output_log = '({phase}) Epoch: {epoch} | Iter: {iter} | Time: {time:.4f}'.format(
+                        output_log = '({phase}) Epoch: {epoch} | Iter: {iter} | Time: {time:.4f} '.format(
                             phase=phase, epoch=epoch, iter=iter_id, time=time.time()-time_stamp
                         )
+                        output_log += '\n======================GATE-level======================== \n'
                         for loss_key in loss_dict:
-                            if loss_dict[loss_key] !=0:
+                            if 'gate' in loss_key:
                                 output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
-                        output_log += ' | hamming_dist: {:.4f}'.format(hamming_dist)
-                        output_log += ' | connect acc: {:.4f}'.format(acc)
-                        print(output_log)
-                print(f'overall hamming distance:{torch.mean(torch.tensor(hamming_list))}')
-                print(f'overall connect acc:{torch.mean(torch.tensor(acc_list))}')
-                
-                # if self.local_rank == 0:
-                #     self.logger.write('{} Epoch: {:}/{:}| Prob: {:.4f}| TTCLS: {:.4f}| Loss: {:.4f}| Dist: {:.4f}'.format(
-                #         phase, epoch, num_epoch, 
-                #         torch.mean(torch.tensor(lprob)).item(), torch.mean(torch.tensor(lttcls)).item(),
-                #         torch.mean(torch.tensor(lall)).item(), torch.mean(torch.tensor(hamming_list)).item()
-                #     ))
-                # print()
+                        output_log += '\n======================PATH-level======================== \n'
+                        for loss_key in loss_dict:
+                            if 'path' in loss_key:
+                                output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                        output_log += '\n======================Graph-level======================= \n'
+                        for loss_key in loss_dict:
+                            if 'hop' in loss_key:
+                                output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                        output_log += '\n======================All-level========================= \n'
+                        output_log += ' | {}: {:.4f}'.format('loss', loss_dict['loss'].item())
+                        output_log += '\n======================Metric============================\n'
+                        for metric_key in metric_dict:
+                            if metric_dict[metric_key] !=0:
+                                output_log += ' | {}: {:.4f}'.format(metric_key, metric_dict[metric_key])
+                        if iter_id % 10 ==0:
+                            print(output_log)
+                            print('\n')
+
+                if self.local_rank == 0:
+                    for k in overall_dict:
+                        print('overall {}:{:.4f}'.format(k,torch.mean(torch.tensor(overall_dict[k]))))
+                    print('\n')
+                    output_log = '({phase}) Epoch: {epoch}| '.format(
+                            phase=phase, epoch=epoch
+                        )
+                    output_log += '\n======================GATE-level======================== \n'
+                    for loss_key in loss_dict:
+                        if 'gate' in loss_key:
+                            output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                    output_log += '\n======================PATH-level======================== \n'
+                    for loss_key in loss_dict:
+                        if 'path' in loss_key:
+                            output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                    output_log += '\n======================Graph-level======================= \n'
+                    for loss_key in loss_dict:
+                        if 'hop' in loss_key:
+                            output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                    output_log += '\n======================All-level========================= \n'
+                    output_log += ' | {}: {:.4f}'.format('loss', loss_dict['loss'].item())
+                    output_log += '\n======================Metric============================\n'
+                    for metric_key in metric_dict:
+                        if metric_dict[metric_key] !=0:
+                            output_log += ' | {}: {:.4f}'.format(metric_key, metric_dict[metric_key])
+                    self.logger.write(output_log)
+                    self.logger.write()
+                    print()
             
             # Learning rate decay
             self.model_epoch += 1
