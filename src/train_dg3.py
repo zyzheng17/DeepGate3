@@ -12,9 +12,9 @@ from config import get_parse_args
 
 from models.dg2 import DeepGate2
 from models.dg3 import DeepGate3
-from datasets.dataset_utils import npzitem_to_graph
-from datasets.dg3_parser import NpzParser
-from datasets.aig_parser import AIGParser
+from dg_datasets.dataset_utils import npzitem_to_graph
+from dg_datasets.dg3_parser import NpzParser
+from dg_datasets.aig_parser import AIGParser
 from bert_model.bert import BERT
 from trainer.dg3_trainer import Trainer
 import torch

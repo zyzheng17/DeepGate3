@@ -4,11 +4,11 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import os 
+import os
 import numpy as np 
 from config import get_parse_args
 
-from datasets.dg3_parser import NpzParser
+from dg_datasets.dg3_parser import NpzParser
 import torch
 import random
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
