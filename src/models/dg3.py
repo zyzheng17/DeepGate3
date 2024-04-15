@@ -31,7 +31,12 @@ class DeepGate3(nn.Module):
         self.tf_arch = args.tf_arch
         # Tokenizer
         self.tokenizer = DeepGate2()
-        self.tokenizer.load_pretrained(args.pretrained_model_path)
+        if self.args.workload:
+            self.tokenizer.load_pretrained('/uac/gds/zyzheng23/projects/DeepGate3-Transformer/trained/model_last_workload.pth')
+        else:
+            self.tokenizer.load_pretrained(args.pretrained_model_path)
+        for param in self.tokenizer.parameters():
+            param.requires_grad = False
 
         #special token
         self.cls_token_hf = nn.Parameter(torch.randn([self.hidden,]))
@@ -40,7 +45,7 @@ class DeepGate3(nn.Module):
         self.dc_token = nn.Parameter(torch.randn([self.hidden,]))
         self.zero_token = nn.Parameter(torch.randn([self.hidden,]))
         self.one_token = nn.Parameter(torch.randn([self.hidden,]))
-        self.pad_token = torch.zeros([self.hidden,]) # dont learn
+        self.pad_token = torch.zeros([self.hidden,]) # don't learn
         self.pool_max_length = 10
         self.hf_PositionalEmbedding = nn.Embedding(33,self.hidden)
         self.hs_PositionalEmbedding = nn.Embedding(33,self.hidden)
@@ -48,7 +53,7 @@ class DeepGate3(nn.Module):
         
         # Transformer 
         if args.tf_arch != 'baseline':
-            self.transformer = _transformer_factory[args.tf_arch](args)
+            self.transformer = _transformer_factory[args.tf_arch](args,hidden=self.hidden)
         
 
         #pooling layer
@@ -106,19 +111,6 @@ class DeepGate3(nn.Module):
         )
 
         #Similarity
-        self.sim = nn.CosineSimilarity(dim=1, eps=1e-6)
-        # self.proj_gate_ttsim = MLP(
-        #     dim_in=self.args.token_emb*2, dim_hidden=self.args.mlp_hidden, dim_pred=self.args.token_emb, 
-        #     num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        # )
-        # self.proj_hop_ttsim = MLP(
-        #     dim_in=self.args.token_emb*2, dim_hidden=self.args.mlp_hidden, dim_pred=self.args.token_emb, 
-        #     num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        # )
-        # self.proj_GED = MLP(
-        #     dim_in=self.args.token_emb*2, dim_hidden=self.args.mlp_hidden, dim_pred=self.args.token_emb, 
-        #     num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        # )
         self.proj_gate_ttsim = MLP(
             dim_in=self.args.token_emb*2, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
             num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
@@ -160,7 +152,10 @@ class DeepGate3(nn.Module):
         
         
     def forward(self, g, skip_path=False, skip_hop=False):
-        hs, hf = self.tokenizer(g)
+        if self.args.workload:
+            hs, hf = self.tokenizer(g, g.prob)
+        else:
+            hs, hf = self.tokenizer(g)
         hf = hf.detach()
         hs = hs.detach()
         # Refine-Transformer 
@@ -177,10 +172,6 @@ class DeepGate3(nn.Module):
         #=========================================================
             
         #gate-level pretrain task : predict pari-wise TT sim
-        # gate_hf1 = self.proj_gate_ttsim(hf[g.tt_pair_index[0]])
-        # gate_hf2 = self.proj_gate_ttsim(hf[g.tt_pair_index[1]])
-        # gate_tt_sim = self.sim(gate_hf1, gate_hf2)
-        # gate_tt_sim = self.sim(hf[g.tt_pair_index[0]],hf[g.tt_pair_index[1]])
         gate_tt_sim = self.proj_gate_ttsim(torch.cat([hf[g.tt_pair_index[0]],hf[g.tt_pair_index[1]]],dim=-1))
         gate_tt_sim = nn.Sigmoid()(gate_tt_sim)
 
@@ -252,8 +243,6 @@ class DeepGate3(nn.Module):
             #path num prediction
             pred_path_len = self.readout_path_len(path_hs)
             pred_path_and_ratio = self.readout_path_and_ratio(path_hs)  # Predict the ratio of AND gates in the path
-            # pred_path_gate1 = self.readout_gate1(path_hs)
-            # pred_path_gate2 = self.readout_gate2(path_hs)
 
         #=========================================================
         #======================GRAPH-level========================
@@ -308,12 +297,9 @@ class DeepGate3(nn.Module):
             hop_hf = hop_hf[:,0]
 
             #pair-wise TT sim prediction
-            # hop_hf1 = self.proj_hop_ttsim(hop_hf[g.hop_forward_index[g.hop_pair_index[0]]])
-            # hop_hf2 = self.proj_hop_ttsim(hop_hf[g.hop_forward_index[g.hop_pair_index[1]]])
-            # hop_tt_sim = self.sim(hop_hf1, hop_hf2)
-
             hop_tt_sim = self.proj_hop_ttsim(torch.cat([hop_hf[g.hop_forward_index[g.hop_pair_index[0]]],hop_hf[g.hop_forward_index[g.hop_pair_index[1]]]],dim=-1))
             hop_tt_sim = nn.Sigmoid()(hop_tt_sim)
+
             # truth table prediction
             hop_tt = self.hop_head(hop_hf)
 
@@ -356,10 +342,8 @@ class DeepGate3(nn.Module):
 
             hop_hs = self.hop_struc_tf(hop_hs,src_key_padding_mask = hs_masks)
             hop_hs = hop_hs[:,0]
+
             #pari-wise GED prediction 
-            # hop_hs1 = self.proj_GED(hop_hs[g.hop_pair_index[0]])
-            # hop_hs2 = self.proj_GED(hop_hs[g.hop_pair_index[1]])
-            # pred_GED = self.sim(hop_hs1, hop_hs2)
             pred_GED = self.proj_GED(torch.cat([hop_hs[g.hop_pair_index[0]],hop_hs[g.hop_pair_index[1]]],dim=-1))
             pred_GED = nn.Sigmoid()(pred_GED)
 
@@ -369,7 +353,7 @@ class DeepGate3(nn.Module):
             #hop level prediction
             pred_hop_level = self.readout_hop_level(hop_hs)
 
-            #graph-level pretrain task : on hop prediction
+            #graph-level pretrain task: on hop prediction
             on_hop_emb = torch.cat([hs[g.ninh_node_index],hop_hs[g.ninh_hop_index]],dim=1)
             on_hop_logits = self.on_hop_head(on_hop_emb)
         
@@ -390,8 +374,6 @@ class DeepGate3(nn.Module):
                 'on_path':on_path_logits,
                 'length':pred_path_len,
                 'AND': pred_path_and_ratio, 
-                # 'AND': pred_path_gate1,
-                # 'NOT': pred_path_gate2,
             },
             'hop':{
                 'tt':hop_tt,

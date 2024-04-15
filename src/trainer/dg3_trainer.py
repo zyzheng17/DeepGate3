@@ -542,9 +542,9 @@ class Trainer():
                     for metric_key in metric_dict:
                         if metric_dict[metric_key] !=0:
                             output_log += ' | {}: {:.4f}'.format(metric_key, metric_dict[metric_key])
-                    self.logger.write(output_log)
-                    self.logger.write()
-                    print()
+                    # self.logger.write(output_log)
+                    # self.logger.write()
+                    print(output_log)
             
             # Learning rate decay
             self.model_epoch += 1

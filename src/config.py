@@ -11,8 +11,8 @@ def get_parse_args():
     parser.add_argument('--test', action='store_true', default=False)
     
     # Dataset
-    parser.add_argument('--data_dir', default='/uac/gds/zyzheng23/projects/DeepGate3-Transformer/data/train_dg3')
-    parser.add_argument('--circuit_path', default='/uac/gds/zyzheng23/projects/DeepGate3-Transformer/data/train_dg3/graphs.npz')
+    parser.add_argument('--data_dir', default='/uac/gds/zyzheng23/projects/DeepGate3-Transformer/data/dg3_80k')
+    parser.add_argument('--circuit_path', default='/uac/gds/zyzheng23/projects/DeepGate3-Transformer/data/dg3_80k/wl_4_hop.npz')
     parser.add_argument('--default_dataset', action='store_true')
     parser.add_argument('--hop_ratio', default=0.15, type=float)
     parser.add_argument('--k_hop', default=4, type=int)
@@ -20,8 +20,9 @@ def get_parse_args():
     parser.add_argument('--load_npz', default='', type=str)
     
     # Model 
-    parser.add_argument('--pretrained_model_path', default='./trained/model_last.pth')
+    parser.add_argument('--pretrained_model_path', default='./DeepGate3-Transformer/trained/model_last.pth')
     parser.add_argument('--dropout', default=0.1, type=float)
+    parser.add_argument('--workload', default=True, type=float)
     
     # Transformer 
     parser.add_argument('--tf_arch', default='plain', type=str)
