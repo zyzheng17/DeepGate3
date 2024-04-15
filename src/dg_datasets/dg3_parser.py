@@ -7,12 +7,9 @@ import random
 import time
 from torch_geometric.data import Data, InMemoryDataset
 import torch.nn.functional as F
-import sys
 
 from deepgate.utils.data_utils import read_npz_file
 from typing import Optional, Callable, List
-import os.path as osp
-sys.path.append('/research/d1/gds/zyzheng23/projects/deepgate3/src')
 from utils.dataset_utils import parse_pyg_dg3
 
 from utils.circuit_utils import complete_simulation, prepare_dg2_labels_cpp, \
