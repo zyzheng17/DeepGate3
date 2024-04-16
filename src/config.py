@@ -7,7 +7,7 @@ def get_parse_args():
     parser.add_argument('--exp_id', default='default')
     parser.add_argument('--local-rank', default=0, type=int)
     parser.add_argument('--debug', default=False, action='store_true')
-    parser.add_argument('--gpus', default='4', type=str)
+    parser.add_argument('--gpus', default='-1', type=str)
     parser.add_argument('--test', action='store_true', default=False)
     
     # Dataset
@@ -22,7 +22,7 @@ def get_parse_args():
     # Model 
     parser.add_argument('--pretrained_model_path', default='./DeepGate3-Transformer/trained/model_last.pth')
     parser.add_argument('--dropout', default=0.1, type=float)
-    parser.add_argument('--workload', default=True, type=float)
+    parser.add_argument('--workload', action='store_true', default=False)
     
     # Transformer 
     parser.add_argument('--tf_arch', default='plain', type=str)

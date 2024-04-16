@@ -31,10 +31,8 @@ class DeepGate3(nn.Module):
         self.tf_arch = args.tf_arch
         # Tokenizer
         self.tokenizer = DeepGate2()
-        if self.args.workload:
-            self.tokenizer.load_pretrained('/uac/gds/zyzheng23/projects/DeepGate3-Transformer/trained/model_last_workload.pth')
-        else:
-            self.tokenizer.load_pretrained(args.pretrained_model_path)
+        # Stone: Modify here
+        self.tokenizer.load_pretrained(args.pretrained_model_path)
         for param in self.tokenizer.parameters():
             param.requires_grad = False
 

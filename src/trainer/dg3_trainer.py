@@ -461,7 +461,8 @@ class Trainer():
                     'on_hop_acc': [],
                 }
                 for iter_id, batch in enumerate(dataset):
-                    time_stamp = time.time()
+                    if self.local_rank == 0:
+                        time_stamp = time.time()
                     batch = batch.to(self.device)                    
 
                     loss_dict, metric_dict = self.run_batch(batch)
