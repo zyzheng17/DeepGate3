@@ -71,7 +71,7 @@ if __name__ == '__main__':
     # train_dataset, val_dataset = parser.get_dataset()
     
     # Stone: Support multiple npz files
-    parser = MultiNpzParser(args.data_dir, args.npz_dir, args, random_shuffle=True)
+    parser = MultiNpzParser(args.data_dir, args.npz_dir, args.test_npz_path, args, random_shuffle=True)
     train_dataset, val_dataset = parser.get_dataset()
 
     trainer = Trainer(

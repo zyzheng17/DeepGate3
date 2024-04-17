@@ -14,6 +14,7 @@ def get_parse_args():
     parser.add_argument('--data_dir', default='/uac/gds/zyzheng23/projects/DeepGate3-Transformer/data/dg3_80k')
     parser.add_argument('--npz_dir', default='/home/zyshi21/data/share/dg3_dataset/100p')
     parser.add_argument('--circuit_path', default='/uac/gds/zyzheng23/projects/DeepGate3-Transformer/data/dg3_80k/wl_4_hop.npz')
+    parser.add_argument('--test_npz_path', default='/home/zyshi21/data/share/dg3_dataset/test/00.npz')
     parser.add_argument('--default_dataset', action='store_true')
     parser.add_argument('--hop_ratio', default=0.15, type=float)
     parser.add_argument('--k_hop', default=4, type=int)
