@@ -21,9 +21,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset,DataLoader
 import random
-import torchsummary
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
-
 #fix global seed
 def setup_seed(seed):
     torch.manual_seed(seed)

@@ -293,19 +293,25 @@ class Trainer():
         #=========================================================
         #======================PATH-level=========================
         #=========================================================
-        # on path prediction
-        pred_on_path_prob = nn.Sigmoid()(result_dict['path']['on_path']).squeeze(-1).to(self.device)
-        l_path_onpath = self.bce(pred_on_path_prob,batch.ninp_labels.float())
-        pred_on_path_label = torch.where(pred_on_path_prob>0.5,1,0)
-        on_path_acc = (pred_on_path_label==batch.ninp_labels).sum()*1.0/pred_on_path_label.shape[0]
+        if self.args.skip_path:
+            l_path_onpath = 0
+            on_path_acc = 0
+            l_path_len = 0
+            l_path_and = 0
+        else:
+            # on path prediction
+            pred_on_path_prob = nn.Sigmoid()(result_dict['path']['on_path']).squeeze(-1).to(self.device)
+            l_path_onpath = self.bce(pred_on_path_prob,batch.ninp_labels.float())
+            pred_on_path_label = torch.where(pred_on_path_prob>0.5,1,0)
+            on_path_acc = (pred_on_path_label==batch.ninp_labels).sum()*1.0/pred_on_path_label.shape[0]
 
-        #path length prediction
-        l_path_len = self.l1_loss(result_dict['path']['length'].squeeze(-1), batch.paths_len.to(self.device))
+            #path length prediction
+            l_path_len = self.l1_loss(result_dict['path']['length'].squeeze(-1), batch.paths_len.to(self.device))
 
-        #path AND&NOT prediction
-        l_path_and = self.l1_loss(result_dict['path']['AND'].squeeze(-1), batch.paths_and_ratio.to(self.device))
-        # l_path_and = self.l1_loss(result_dict['path']['AND'].squeeze(-1), batch.paths_no_and.to(self.device))
-        # l_path_not = self.l1_loss(result_dict['path']['NOT'].squeeze(-1), batch.paths_no_not.to(self.device))
+            #path AND&NOT prediction
+            l_path_and = self.l1_loss(result_dict['path']['AND'].squeeze(-1), batch.paths_and_ratio.to(self.device))
+            # l_path_and = self.l1_loss(result_dict['path']['AND'].squeeze(-1), batch.paths_no_and.to(self.device))
+            # l_path_not = self.l1_loss(result_dict['path']['NOT'].squeeze(-1), batch.paths_no_not.to(self.device))
 
         #=========================================================
         #======================GRAPH-level========================
@@ -461,7 +467,8 @@ class Trainer():
                     'on_hop_acc': [],
                 }
                 for iter_id, batch in enumerate(dataset):
-                    time_stamp = time.time()
+                    if self.local_rank == 0:
+                        time_stamp = time.time()
                     batch = batch.to(self.device)                    
 
                     loss_dict, metric_dict = self.run_batch(batch)

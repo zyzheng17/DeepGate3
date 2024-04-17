@@ -4,6 +4,7 @@ import torch
 
 def get_parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--local_rank", type=int)
     parser.add_argument('--exp_id', default='default')
     parser.add_argument('--local-rank', default=0, type=int)
     parser.add_argument('--debug', default=False, action='store_true')
@@ -22,7 +23,7 @@ def get_parse_args():
     # Model 
     parser.add_argument('--pretrained_model_path', default='./DeepGate3-Transformer/trained/model_last.pth')
     parser.add_argument('--dropout', default=0.1, type=float)
-    parser.add_argument('--workload', default=True, type=float)
+    parser.add_argument('--workload', default=False, action='store_true')
     
     # Transformer 
     parser.add_argument('--tf_arch', default='plain', type=str)
@@ -80,7 +81,7 @@ def get_parse_args():
     # args.device = torch.device('cuda:4')
 
     # Training 
-    args.skip_path = False
+    args.skip_path = True
     args.skip_hop = False
     
     return args

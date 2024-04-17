@@ -22,7 +22,7 @@ class Hop_Transformer(nn.Sequential):
         super().__init__()
         # Parameters
         self.args = args
-        self.hidden =hidden
+        self.hidden = hidden
         n_layers = self.args.TF_depth
         # Model
         # self.mask_token = nn.Parameter(torch.randn([args.token_emb,]))
