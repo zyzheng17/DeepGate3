@@ -395,26 +395,35 @@ class Trainer():
         # return loss_status, hamming_dist
         return loss_status, metric_status
 
-    def train(self, num_epoch, train_dataset, val_dataset):
-        # Distribute Dataset
-        if self.distributed:
-            train_sampler = torch.utils.data.distributed.DistributedSampler(
-                train_dataset,
-                num_replicas=self.world_size,
-                rank=self.rank
-            )
-            val_sampler = torch.utils.data.distributed.DistributedSampler(
-                val_dataset,
-                num_replicas=self.world_size,
-                rank=self.rank
-            )
-            train_dataset = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=False, drop_last=True,
-                                    num_workers=self.num_workers, sampler=train_sampler)
+    def train(self, num_epoch, train_datasets, val_dataset):
+        train_dataset_list = []
+        for train_dataset in train_datasets:
+            # Distribute Dataset
+            if self.distributed:
+                train_sampler = torch.utils.data.distributed.DistributedSampler(
+                    train_dataset,
+                    num_replicas=self.world_size,
+                    rank=self.rank
+                )
+                val_sampler = torch.utils.data.distributed.DistributedSampler(
+                    val_dataset,
+                    num_replicas=self.world_size,
+                    rank=self.rank
+                )
+                train_dataset = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=False, drop_last=True,
+                                        num_workers=self.num_workers, sampler=train_sampler)
+            else:
+                train_dataset = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=self.num_workers)
+            train_dataset_list.append(train_dataset)
+            
+        if self.distributed: 
             val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, drop_last=True,
-                                     num_workers=self.num_workers, sampler=val_sampler)
+                                    num_workers=self.num_workers, sampler=val_sampler)
         else:
-            train_dataset = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=self.num_workers)
             val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=self.num_workers)
+        
+        
+        # TODO: By Stone: modify the following code to support multiple datasets
         
         # AverageMeter
         # print(f'save model to {self.log_dir}')
