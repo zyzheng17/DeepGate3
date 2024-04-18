@@ -106,7 +106,7 @@ class NpzParser():
                 name = 'inmemory'
             if self.args.default_dataset:
                 name += '_default'
-            inmemory_path = osp.join(self.root, name)
+            inmemory_path = os.path.join(self.root, name)
             print('Inmemory Dataset Path: ', inmemory_path)
             return inmemory_path
 
@@ -176,9 +176,9 @@ class NpzParser():
                 if self.args.default_dataset:
                     cone = None
                 else:
-                    fanin_fanout_cone = get_fanin_fanout_cone(graph)
-                    graph.fanin_fanout_cone = fanin_fanout_cone
-                    cone = graph.fanin_fanout_cone
+                    fanin_fanout_cones = get_fanin_fanout_cone(graph)
+                    graph.fanin_fanout_cones = fanin_fanout_cones
+                    cone = graph.fanin_fanout_cones
                 connect_pair_index, connect_label = get_connection_pairs(
                     x_data, edge_index, forward_level, 
                     no_src=int(len(x_data)*NODE_CONNECT_SAMPLE_RATIO), no_dst=int(len(x_data)*NODE_CONNECT_SAMPLE_RATIO),

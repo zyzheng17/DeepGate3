@@ -31,6 +31,7 @@ class DeepGate3(nn.Module):
         self.tf_arch = args.tf_arch
         # Tokenizer
         self.tokenizer = DeepGate2()
+        # Stone: Modify here
         self.tokenizer.load_pretrained(args.pretrained_model_path)
         for param in self.tokenizer.parameters():
             param.requires_grad = False
