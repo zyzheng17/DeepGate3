@@ -81,11 +81,11 @@ if __name__ == '__main__':
         num_workers=8
     )
     # # Stone: ICCAD version, no path loss
-    # trainer.set_training_args(loss_weight={
-    #     'path_onpath': 0, 
-    #     'path_len': 0, 
-    #     'path_and': 0
-    # })
+    trainer.set_training_args(loss_weight={
+        'path_onpath': 0, 
+        'path_len': 0, 
+        'path_and': 0
+    })
     trainer.train(args.epoch, train_dataset, val_dataset)
     
     

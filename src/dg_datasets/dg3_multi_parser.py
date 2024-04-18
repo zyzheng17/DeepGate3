@@ -126,6 +126,7 @@ class MultiNpzParser():
             data_list = []
             tot_pairs = 0
             circuits = read_npz_file(npz_path)['circuits'].item()
+            print('Parse NPZ Datset ...', npz_path)
             tot_time = 0
             
             for cir_idx, cir_name in enumerate(circuits):
