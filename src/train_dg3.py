@@ -78,7 +78,7 @@ if __name__ == '__main__':
         model=model, 
         distributed=args.en_distrubuted, training_id=args.exp_id, batch_size=args.batch_size, device=args.device, 
         loss=args.loss, 
-        num_workers=8
+        num_workers=2
     )
     # # Stone: ICCAD version, no path loss
     trainer.set_training_args(loss_weight={

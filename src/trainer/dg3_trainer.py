@@ -359,20 +359,39 @@ class Trainer():
         sum_weight = 0
         for key in self.loss_weight:
             sum_weight += self.loss_weight[key]
-        loss = l_gate_prob * self.loss_weight['gate_prob'] + \
-            l_gate_lv * self.loss_weight['gate_lv'] + \
-            l_gate_con * self.loss_weight['gate_con'] + \
+        # loss = l_gate_prob * self.loss_weight['gate_prob'] + \
+        #     l_gate_lv * self.loss_weight['gate_lv'] + \
+        #     l_gate_con * self.loss_weight['gate_con'] + \
+        #     l_gate_ttsim * self.loss_weight['gate_ttsim'] + \
+        #     l_path_onpath * self.loss_weight['path_onpath'] + \
+        #     l_path_len * self.loss_weight['path_len'] + \
+        #     l_path_and * self.loss_weight['path_and'] + \
+        #     l_hop_tt * self.loss_weight['hop_tt'] + \
+        #     l_hop_ttsim * self.loss_weight['hop_ttsim'] + \
+        #     l_hop_GED * self.loss_weight['hop_GED'] + \
+        #     l_hop_num * self.loss_weight['hop_num'] + \
+        #     l_hop_lv * self.loss_weight['hop_lv'] + \
+        #     l_hop_onhop * self.loss_weight['hop_onhop']
+        
+        func_loss = l_gate_prob * self.loss_weight['gate_prob'] + \
             l_gate_ttsim * self.loss_weight['gate_ttsim'] + \
+            l_hop_tt * self.loss_weight['hop_tt'] + \
+            l_hop_ttsim * self.loss_weight['hop_ttsim'] 
+        
+        stru_loss = l_gate_lv * self.loss_weight['gate_lv'] + \
+            l_gate_con * self.loss_weight['gate_con'] + \
             l_path_onpath * self.loss_weight['path_onpath'] + \
             l_path_len * self.loss_weight['path_len'] + \
             l_path_and * self.loss_weight['path_and'] + \
-            l_hop_tt * self.loss_weight['hop_tt'] + \
-            l_hop_ttsim * self.loss_weight['hop_ttsim'] + \
             l_hop_GED * self.loss_weight['hop_GED'] + \
             l_hop_num * self.loss_weight['hop_num'] + \
             l_hop_lv * self.loss_weight['hop_lv'] + \
             l_hop_onhop * self.loss_weight['hop_onhop']
-        loss = loss / sum_weight
+        
+        func_loss = func_loss / sum_weight
+        stru_loss = stru_loss / sum_weight
+
+        loss = func_loss * 10 + stru_loss
 
         loss_status = {
             'gate_prob': l_gate_prob,
@@ -388,14 +407,16 @@ class Trainer():
             'hop_num': l_hop_num,
             'hop_lv': l_hop_lv,
             'hop_onhop': l_hop_onhop,
-            'loss' : loss
+            'loss' : loss,
+            'func_loss':func_loss,
+            'stru_loss':stru_loss,
         }
+
         metric_status = {
             'hamming_dist': hamming_dist,
             'connect_acc': con_acc,
             'on_path_acc': on_path_acc,
             'on_hop_acc': on_hop_acc,
-
         }
         
         # return loss_status, hamming_dist
@@ -417,6 +438,8 @@ class Trainer():
             'hop_lv': [],
             'hop_onhop': [],
             'loss' : [],
+            'func_loss': [],
+            'stru_loss': [],
             'hamming_dist': [],
             'connect_acc': [],
             'on_path_acc': [],
@@ -430,9 +453,15 @@ class Trainer():
             loss_dict, metric_dict = self.run_batch(batch)
 
             for loss_key in loss_dict:
-                overall_dict[loss_key].append(loss_dict[loss_key].detach().cpu().item())
+                if self.args.skip_path and 'path' in loss_key:
+                    overall_dict[loss_key].append(torch.tensor(0.))
+                else:
+                    overall_dict[loss_key].append(loss_dict[loss_key].detach().cpu().item())
             for metric_key in metric_dict:
-                overall_dict[metric_key].append(metric_dict[metric_key].detach().cpu())
+                if self.args.skip_path and 'path' in metric_key:
+                    overall_dict[metric_key].append(torch.tensor(0.))
+                else:
+                    overall_dict[metric_key].append(metric_dict[metric_key].detach().cpu())
 
             loss = loss_dict['loss']
             
@@ -461,23 +490,36 @@ class Trainer():
                 )
                 output_log += '\n======================GATE-level======================== \n'
                 for loss_key in loss_dict:
+                    gate_loss = []
                     if 'gate' in loss_key:
                         output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
-                output_log += '\n======================PATH-level======================== \n'
-                for loss_key in loss_dict:
-                    if 'path' in loss_key:
-                        output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                        gate_loss.append(loss_dict[loss_key].item())
+                output_log += ' | {}: {:.4f}'.format('overall loss', torch.mean(torch.tensor(gate_loss)))
+                
+                if not self.args.skip_path:
+                    output_log += '\n======================PATH-level======================== \n'
+                    for loss_key in loss_dict:
+                        path_loss = []
+                        if 'path' in loss_key:
+                            output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                            path_loss.append(loss_dict[loss_key].item())
+                    output_log += ' | {}: {:.4f}'.format('overall loss', torch.mean(torch.tensor(path_loss)))
+                
                 output_log += '\n======================Graph-level======================= \n'
                 for loss_key in loss_dict:
                     if 'hop' in loss_key:
+                        hop_loss = []
                         output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                        hop_loss.append(loss_dict[loss_key].item())
+                output_log += ' | {}: {:.4f}'.format('overall loss', torch.mean(torch.tensor(hop_loss)))
+
                 output_log += '\n======================All-level========================= \n'
                 output_log += ' | {}: {:.4f}'.format('loss', loss_dict['loss'].item())
                 output_log += '\n======================Metric============================\n'
                 for metric_key in metric_dict:
                     if metric_dict[metric_key] !=0:
                         output_log += ' | {}: {:.4f}'.format(metric_key, metric_dict[metric_key])
-                if iter_id % 10 ==0:
+                if iter_id % 5 ==0:
                     print(output_log)
                     print('\n')
 
@@ -485,30 +527,35 @@ class Trainer():
             for k in overall_dict:
                 print('overall {}:{:.4f}'.format(k,torch.mean(torch.tensor(overall_dict[k]))))
             print('\n')
-            output_log = '({phase}) Epoch: {epoch}| '.format(
-                    phase=phase, epoch=epoch
-                )
-            output_log += '\n======================GATE-level======================== \n'
-            for loss_key in loss_dict:
-                if 'gate' in loss_key:
-                    output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
-            output_log += '\n======================PATH-level======================== \n'
-            for loss_key in loss_dict:
-                if 'path' in loss_key:
-                    output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
-            output_log += '\n======================Graph-level======================= \n'
-            for loss_key in loss_dict:
-                if 'hop' in loss_key:
-                    output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
-            output_log += '\n======================All-level========================= \n'
-            output_log += ' | {}: {:.4f}'.format('loss', loss_dict['loss'].item())
-            output_log += '\n======================Metric============================\n'
-            for metric_key in metric_dict:
-                if metric_dict[metric_key] !=0:
-                    output_log += ' | {}: {:.4f}'.format(metric_key, metric_dict[metric_key])
-            # self.logger.write(output_log)
-            # self.logger.write()
-            print(output_log)
+
+            # output_log = '({phase}) Epoch: {epoch}| '.format(
+            #         phase=phase, epoch=epoch
+            #     )
+            # output_log += '\n======================GATE-level======================== \n'
+            # for loss_key in loss_dict:
+            #     if 'gate' in loss_key:
+            #         output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+            # if not self.args.skip_path:
+            #     output_log += '\n======================PATH-level======================== \n'
+            #     for loss_key in loss_dict:
+            #         if 'path' in loss_key:
+            #             output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+            # output_log += '\n======================Graph-level======================= \n'
+            # for loss_key in loss_dict:
+            #     if 'hop' in loss_key:
+            #         output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+            # output_log += '\n======================All-level========================= \n'
+            # output_log += ' | {}: {:.4f}'.format('loss', loss_dict['loss'].item())
+            # output_log += ' | {}: {:.4f}'.format('function loss', loss_dict['func_loss'].item())
+            # output_log += ' | {}: {:.4f}'.format('structure loss', loss_dict['stru_loss'].item())
+            # output_log += '\n======================Metric============================\n'
+
+            # for metric_key in metric_dict:
+            #     if metric_dict[metric_key] !=0:
+            #         output_log += ' | {}: {:.4f}'.format(metric_key, metric_dict[metric_key])
+            # # self.logger.write(output_log)
+            # # self.logger.write()
+            # print(output_log)
 
     def train(self, num_epoch, train_datasets, val_dataset):
         train_dataset_list = []
