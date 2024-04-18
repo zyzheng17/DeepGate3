@@ -45,7 +45,7 @@ def get_parse_args():
     parser.add_argument('--resume', action='store_true', default=False)
     parser.add_argument('--epoch', default=200, type=int)
     parser.add_argument('--stage2_steps', default=50, type=int)
-    parser.add_argument('--lr', default=1e-4, type=float)
+    parser.add_argument('--lr', default=5e-4, type=float)
     parser.add_argument('--loss', default='l2', type=str)
     parser.add_argument('--fast', action='store_true', default=False)
     

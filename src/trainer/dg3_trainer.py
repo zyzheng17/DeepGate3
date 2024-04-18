@@ -474,9 +474,15 @@ class Trainer():
                     loss_dict, metric_dict = self.run_batch(batch)
 
                     for loss_key in loss_dict:
-                        overall_dict[loss_key].append(loss_dict[loss_key].detach().cpu().item())
+                        if self.args.skip_path and 'path' in loss_key:
+                            overall_dict[loss_key].append(0)
+                        else:
+                            overall_dict[loss_key].append(loss_dict[loss_key].detach().cpu().item())
                     for metric_key in metric_dict:
-                        overall_dict[metric_key].append(metric_dict[metric_key].detach().cpu())
+                        if self.args.skip_path and 'path' in metric_key:
+                            overall_dict[metric_key].append(0)
+                        else:
+                            overall_dict[metric_key].append(metric_dict[metric_key].detach().cpu())
 
                     loss = loss_dict['loss']
 
@@ -503,13 +509,15 @@ class Trainer():
                             phase=phase, epoch=epoch, iter=iter_id, time=time.time()-time_stamp
                         )
                         output_log += '\n======================GATE-level======================== \n'
+                        
                         for loss_key in loss_dict:
                             if 'gate' in loss_key:
                                 output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
-                        output_log += '\n======================PATH-level======================== \n'
-                        for loss_key in loss_dict:
-                            if 'path' in loss_key:
-                                output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                        if not self.args.skip_path:
+                            output_log += '\n======================PATH-level======================== \n'
+                            for loss_key in loss_dict:
+                                if 'path' in loss_key :
+                                    output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
                         output_log += '\n======================Graph-level======================= \n'
                         for loss_key in loss_dict:
                             if 'hop' in loss_key:
@@ -526,19 +534,23 @@ class Trainer():
 
                 if self.local_rank == 0:
                     for k in overall_dict:
+                        if self.args.skip_path and 'path' in k:
+                            continue
                         print('overall {}:{:.4f}'.format(k,torch.mean(torch.tensor(overall_dict[k]))))
                     print('\n')
                     output_log = '({phase}) Epoch: {epoch}| '.format(
                             phase=phase, epoch=epoch
                         )
+                    
                     output_log += '\n======================GATE-level======================== \n'
                     for loss_key in loss_dict:
                         if 'gate' in loss_key:
                             output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
-                    output_log += '\n======================PATH-level======================== \n'
-                    for loss_key in loss_dict:
-                        if 'path' in loss_key:
-                            output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                    if not self.args.skip_path:
+                        output_log += '\n======================PATH-level======================== \n'
+                        for loss_key in loss_dict:
+                            if 'path' in loss_key:
+                                output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
                     output_log += '\n======================Graph-level======================= \n'
                     for loss_key in loss_dict:
                         if 'hop' in loss_key:

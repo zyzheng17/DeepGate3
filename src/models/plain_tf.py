@@ -45,7 +45,7 @@ class Plain_Transformer(nn.Sequential):
         hf = hf.detach()
         hs = hs.detach()
         bs = g.batch.max().item() + 1
-        corr_m = g.fanin_fanout_cone.reshape(bs, self.max_length, self.max_length)
+        corr_m = g.fanin_fanout_cones.reshape(bs, self.max_length, self.max_length)
         
         corr_m = torch.where(corr_m == 0, True, False) # Flase = compute attention, True = mask # inverse to fit nn.transformer
         #multi-head attention: len, bs, emb -> len, bs*numhead, head_emb by tensor.reshape
