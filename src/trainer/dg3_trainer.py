@@ -394,6 +394,115 @@ class Trainer():
         
         # return loss_status, hamming_dist
         return loss_status, metric_status
+    
+    def run_dataset(self, epoch, dataset, phase='train'):
+        overall_dict = {
+            'gate_prob': [],
+            'gate_lv': [],
+            'gate_con': [],
+            'gate_ttsim': [],
+            'path_onpath': [],
+            'path_len': [],
+            'path_and': [],
+            'hop_tt': [],
+            'hop_ttsim': [],
+            'hop_GED': [],
+            'hop_num': [],
+            'hop_lv': [],
+            'hop_onhop': [],
+            'loss' : [],
+            'hamming_dist': [],
+            'connect_acc': [],
+            'on_path_acc': [],
+            'on_hop_acc': [],
+        }
+        for iter_id, batch in enumerate(dataset):
+            if self.local_rank == 0:
+                time_stamp = time.time()
+            batch = batch.to(self.device)                    
+
+            loss_dict, metric_dict = self.run_batch(batch)
+
+            for loss_key in loss_dict:
+                overall_dict[loss_key].append(loss_dict[loss_key].detach().cpu().item())
+            for metric_key in metric_dict:
+                overall_dict[metric_key].append(metric_dict[metric_key].detach().cpu())
+
+            loss = loss_dict['loss']
+            
+            if phase == 'train':
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+            
+            if self.local_rank == 0:
+                # Bar.suffix = '[{:}/{:}] |Tot: {total:} |ETA: {eta:} '.format(iter_id, len(dataset), total=bar.elapsed_td, eta=bar.eta_td)
+                # Bar.suffix += '|Prob: {:.4f} |TTCLS: {:.4f} |Loss: {:.4f} |Dist: {:.4f}'.format(
+                #     torch.mean(torch.tensor(lprob)).item(), torch.mean(torch.tensor(lttcls)).item(),
+                #     torch.mean(torch.tensor(lall)).item(), torch.mean(torch.tensor(hamming_list)).item()
+                # )
+                # bar.next()
+                # bar.suffix = '({phase}) Epoch: {epoch} | Iter: {iter} | Time: {time:.4f}'.format(
+                #     phase=phase, epoch=epoch, iter=iter_id, time=time.time()-time_stamp
+                # )
+                # for loss_key in loss_dict:
+                #     if loss_dict[loss_key] !=0:
+                #         bar.suffix += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                # bar.suffix += ' | hamming_dist: {:.4f}'.format(hamming_dist)
+                # bar.next()
+                output_log = '({phase}) Epoch: {epoch} | Iter: {iter} | Time: {time:.4f} '.format(
+                    phase=phase, epoch=epoch, iter=iter_id, time=time.time()-time_stamp
+                )
+                output_log += '\n======================GATE-level======================== \n'
+                for loss_key in loss_dict:
+                    if 'gate' in loss_key:
+                        output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                output_log += '\n======================PATH-level======================== \n'
+                for loss_key in loss_dict:
+                    if 'path' in loss_key:
+                        output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                output_log += '\n======================Graph-level======================= \n'
+                for loss_key in loss_dict:
+                    if 'hop' in loss_key:
+                        output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+                output_log += '\n======================All-level========================= \n'
+                output_log += ' | {}: {:.4f}'.format('loss', loss_dict['loss'].item())
+                output_log += '\n======================Metric============================\n'
+                for metric_key in metric_dict:
+                    if metric_dict[metric_key] !=0:
+                        output_log += ' | {}: {:.4f}'.format(metric_key, metric_dict[metric_key])
+                if iter_id % 10 ==0:
+                    print(output_log)
+                    print('\n')
+
+        if self.local_rank == 0:
+            for k in overall_dict:
+                print('overall {}:{:.4f}'.format(k,torch.mean(torch.tensor(overall_dict[k]))))
+            print('\n')
+            output_log = '({phase}) Epoch: {epoch}| '.format(
+                    phase=phase, epoch=epoch
+                )
+            output_log += '\n======================GATE-level======================== \n'
+            for loss_key in loss_dict:
+                if 'gate' in loss_key:
+                    output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+            output_log += '\n======================PATH-level======================== \n'
+            for loss_key in loss_dict:
+                if 'path' in loss_key:
+                    output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+            output_log += '\n======================Graph-level======================= \n'
+            for loss_key in loss_dict:
+                if 'hop' in loss_key:
+                    output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
+            output_log += '\n======================All-level========================= \n'
+            output_log += ' | {}: {:.4f}'.format('loss', loss_dict['loss'].item())
+            output_log += '\n======================Metric============================\n'
+            for metric_key in metric_dict:
+                if metric_dict[metric_key] !=0:
+                    output_log += ' | {}: {:.4f}'.format(metric_key, metric_dict[metric_key])
+            # self.logger.write(output_log)
+            # self.logger.write()
+            print(output_log)
 
     def train(self, num_epoch, train_datasets, val_dataset):
         train_dataset_list = []
@@ -424,138 +533,19 @@ class Trainer():
         
         
         # TODO: By Stone: modify the following code to support multiple datasets
-        
-        # AverageMeter
-        # print(f'save model to {self.log_dir}')
-        # self.save(os.path.join(self.log_dir, 'model_-1.pth'))
-        # self.save('model_last.pth')
-        # Train
         print('[INFO] Start training, lr = {:.4f}'.format(self.optimizer.param_groups[0]['lr']))
-        for epoch in range(num_epoch): 
+        for epoch in range(num_epoch):
             for phase in ['train', 'val']:
-            # for phase in ['val']:
                 if phase == 'train':
-                    dataset = train_dataset
                     self.model.train()
                     self.model.to(self.device)
+                    for train_dataset in train_dataset_list:
+                        self.run_dataset(epoch, train_dataset, phase)
                 else:
-                    dataset = val_dataset
                     self.model.eval()
                     self.model.to(self.device)
-                # if self.local_rank == 0:
-                #     bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
-                hamming_list = []
-                acc_list = []
-                loss_list = []
-                # if self.local_rank == 0:
-                #     bar = Bar('{} {:}/{:}'.format(phase, epoch, num_epoch), max=len(dataset))
-                overall_dict = {
-                    'gate_prob': [],
-                    'gate_lv': [],
-                    'gate_con': [],
-                    'gate_ttsim': [],
-                    'path_onpath': [],
-                    'path_len': [],
-                    'path_and': [],
-                    'hop_tt': [],
-                    'hop_ttsim': [],
-                    'hop_GED': [],
-                    'hop_num': [],
-                    'hop_lv': [],
-                    'hop_onhop': [],
-                    'loss' : [],
-                    'hamming_dist': [],
-                    'connect_acc': [],
-                    'on_path_acc': [],
-                    'on_hop_acc': [],
-                }
-                for iter_id, batch in enumerate(dataset):
-                    if self.local_rank == 0:
-                        time_stamp = time.time()
-                    batch = batch.to(self.device)                    
+                    self.run_dataset(epoch, val_dataset, phase)
 
-                    loss_dict, metric_dict = self.run_batch(batch)
-
-                    for loss_key in loss_dict:
-                        overall_dict[loss_key].append(loss_dict[loss_key].detach().cpu().item())
-                    for metric_key in metric_dict:
-                        overall_dict[metric_key].append(metric_dict[metric_key].detach().cpu())
-
-                    loss = loss_dict['loss']
-
-                    if phase == 'train':
-                        self.optimizer.zero_grad()
-                        loss.backward()
-                        self.optimizer.step()
-                    if self.local_rank == 0:
-                        # Bar.suffix = '[{:}/{:}] |Tot: {total:} |ETA: {eta:} '.format(iter_id, len(dataset), total=bar.elapsed_td, eta=bar.eta_td)
-                        # Bar.suffix += '|Prob: {:.4f} |TTCLS: {:.4f} |Loss: {:.4f} |Dist: {:.4f}'.format(
-                        #     torch.mean(torch.tensor(lprob)).item(), torch.mean(torch.tensor(lttcls)).item(),
-                        #     torch.mean(torch.tensor(lall)).item(), torch.mean(torch.tensor(hamming_list)).item()
-                        # )
-                        # bar.next()
-                        # bar.suffix = '({phase}) Epoch: {epoch} | Iter: {iter} | Time: {time:.4f}'.format(
-                        #     phase=phase, epoch=epoch, iter=iter_id, time=time.time()-time_stamp
-                        # )
-                        # for loss_key in loss_dict:
-                        #     if loss_dict[loss_key] !=0:
-                        #         bar.suffix += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
-                        # bar.suffix += ' | hamming_dist: {:.4f}'.format(hamming_dist)
-                        # bar.next()
-                        output_log = '({phase}) Epoch: {epoch} | Iter: {iter} | Time: {time:.4f} '.format(
-                            phase=phase, epoch=epoch, iter=iter_id, time=time.time()-time_stamp
-                        )
-                        output_log += '\n======================GATE-level======================== \n'
-                        for loss_key in loss_dict:
-                            if 'gate' in loss_key:
-                                output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
-                        output_log += '\n======================PATH-level======================== \n'
-                        for loss_key in loss_dict:
-                            if 'path' in loss_key:
-                                output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
-                        output_log += '\n======================Graph-level======================= \n'
-                        for loss_key in loss_dict:
-                            if 'hop' in loss_key:
-                                output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
-                        output_log += '\n======================All-level========================= \n'
-                        output_log += ' | {}: {:.4f}'.format('loss', loss_dict['loss'].item())
-                        output_log += '\n======================Metric============================\n'
-                        for metric_key in metric_dict:
-                            if metric_dict[metric_key] !=0:
-                                output_log += ' | {}: {:.4f}'.format(metric_key, metric_dict[metric_key])
-                        if iter_id % 10 ==0:
-                            print(output_log)
-                            print('\n')
-
-                if self.local_rank == 0:
-                    for k in overall_dict:
-                        print('overall {}:{:.4f}'.format(k,torch.mean(torch.tensor(overall_dict[k]))))
-                    print('\n')
-                    output_log = '({phase}) Epoch: {epoch}| '.format(
-                            phase=phase, epoch=epoch
-                        )
-                    output_log += '\n======================GATE-level======================== \n'
-                    for loss_key in loss_dict:
-                        if 'gate' in loss_key:
-                            output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
-                    output_log += '\n======================PATH-level======================== \n'
-                    for loss_key in loss_dict:
-                        if 'path' in loss_key:
-                            output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
-                    output_log += '\n======================Graph-level======================= \n'
-                    for loss_key in loss_dict:
-                        if 'hop' in loss_key:
-                            output_log += ' | {}: {:.4f}'.format(loss_key, loss_dict[loss_key].item())
-                    output_log += '\n======================All-level========================= \n'
-                    output_log += ' | {}: {:.4f}'.format('loss', loss_dict['loss'].item())
-                    output_log += '\n======================Metric============================\n'
-                    for metric_key in metric_dict:
-                        if metric_dict[metric_key] !=0:
-                            output_log += ' | {}: {:.4f}'.format(metric_key, metric_dict[metric_key])
-                    # self.logger.write(output_log)
-                    # self.logger.write()
-                    print(output_log)
-            
             # Learning rate decay
             self.model_epoch += 1
             if self.lr_step > 0 and self.model_epoch % self.lr_step == 0:
