@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from deepgate.utils.data_utils import read_npz_file
 from typing import Optional, Callable, List
 from utils.dataset_utils import parse_pyg_dg3
-
+import os.path as osp
 from utils.circuit_utils import complete_simulation, prepare_dg2_labels_cpp, \
     get_fanin_fanout_cone, get_sample_paths, remove_unconnected, \
     get_connection_pairs, get_hop_pair_labels

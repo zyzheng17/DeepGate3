@@ -4,6 +4,7 @@ import torch
 
 def get_parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--local_rank", type=int)
     parser.add_argument('--exp_id', default='default')
     parser.add_argument('--local-rank', default=0, type=int)
     parser.add_argument('--debug', default=False, action='store_true')
@@ -46,7 +47,7 @@ def get_parse_args():
     parser.add_argument('--resume', action='store_true', default=False)
     parser.add_argument('--epoch', default=200, type=int)
     parser.add_argument('--stage2_steps', default=50, type=int)
-    parser.add_argument('--lr', default=1e-4, type=float)
+    parser.add_argument('--lr', default=5e-4, type=float)
     parser.add_argument('--loss', default='l2', type=str)
     parser.add_argument('--fast', action='store_true', default=False)
     
@@ -82,7 +83,7 @@ def get_parse_args():
     # args.device = torch.device('cuda:4')
 
     # Training 
-    args.skip_path = False
+    args.skip_path = True
     args.skip_hop = False
     
     return args
