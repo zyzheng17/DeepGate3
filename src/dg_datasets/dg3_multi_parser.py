@@ -145,6 +145,8 @@ class MultiNpzParser():
                         break
                     if 'prob' in key or 'sim' in key or 'ratio' in key or 'ged' in key:
                         graph[key] = torch.tensor(circuits[cir_name][key], dtype=torch.float)
+                    elif key == 'hs' or key == 'hf':
+                        graph[key] = torch.tensor(circuits[cir_name][key], dtype=torch.float)
                     else:
                         graph[key] = torch.tensor(circuits[cir_name][key], dtype=torch.long)
                 if not succ:
