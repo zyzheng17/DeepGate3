@@ -201,9 +201,12 @@ class DeepGate3(nn.Module):
         #======================PATH-level=========================
         #=========================================================
         if skip_path: 
-            on_path_logits = torch.zeros(len(g.ninp_labels)).to(hs.device)
-            pred_path_len = torch.zeros(len(g.paths_len)).to(hs.device)
-            pred_path_and_ratio = torch.zeros(len(g.paths_and_ratio)).to(hs.device)
+            on_path_logits = 0
+            pred_path_len = 0
+            pred_path_and_ratio = 0
+            # on_path_logits = torch.zeros(len(g.ninp_labels)).to(hs.device)
+            # pred_path_len = torch.zeros(len(g.paths_len)).to(hs.device)
+            # pred_path_and_ratio = torch.zeros(len(g.paths_and_ratio)).to(hs.device)
         else:
             # Stone: reduce maximum path length
             max_path_len = g.paths_len.max().item()     # previous: 256

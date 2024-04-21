@@ -107,7 +107,11 @@ class NpzParser():
             if self.args.default_dataset:
                 name += '_default'
             inmemory_path = os.path.join(self.root, name)
-            print('Inmemory Dataset Path: ', inmemory_path)
+            if os.path.exists(inmemory_path):
+                print('Inmemory Dataset Path: {}, Existed'.format(inmemory_path))
+            else:
+                print('Inmemory Dataset Path: {}, New Created'.format(inmemory_path))
+            
             return inmemory_path
 
         @property
