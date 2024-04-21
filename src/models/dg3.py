@@ -151,18 +151,17 @@ class DeepGate3(nn.Module):
         
     def forward(self, g, skip_path=False, skip_hop=False):
 
-        print('--------------dg3 start-------------')
-        t = time.time()
+
         if self.args.workload:
             hs, hf = self.tokenizer(g, g.prob)
         else:
             hs, hf = self.tokenizer(g)
-
-        print('dg2 time:{:.2f}'.format(time.time()-t))
-        t = time.time()
-
         hf = hf.detach()
         hs = hs.detach()
+        # t = time.time()
+
+        # hf = g.hf.detach()
+        # hs = g.hs.detach()
         # Refine-Transformer 
 
         if self.tf_arch != 'baseline':
@@ -173,8 +172,8 @@ class DeepGate3(nn.Module):
             #structure
             hs = hs + hs_tf
 
-        print('dg3 refine transformer time:{:.2f}'.format(time.time()-t))
-        t = time.time()
+        # print('dg3 refine transformer time:{:.2f}'.format(time.time()-t))
+        # t = time.time()
 
         #=========================================================
         #======================GATE-level=========================
@@ -195,8 +194,8 @@ class DeepGate3(nn.Module):
         gates = gates.permute(1,2,0).reshape(-1,self.hidden*2)
         pred_connect = self.connect_head(gates)
 
-        print('dg3 gate-level time:{:.2f}'.format(time.time()-t))
-        t = time.time()
+        # print('dg3 gate-level time:{:.2f}'.format(time.time()-t))
+        # t = time.time()
 
         #=========================================================
         #======================PATH-level=========================
@@ -256,8 +255,8 @@ class DeepGate3(nn.Module):
             pred_path_len = self.readout_path_len(path_hs)
             pred_path_and_ratio = self.readout_path_and_ratio(path_hs)  # Predict the ratio of AND gates in the path
 
-        print('dg3 path-level time:{:.2f}'.format(time.time()-t))
-        t = time.time()
+        # print('dg3 path-level time:{:.2f}'.format(time.time()-t))
+        # t = time.time()
         #=========================================================
         #======================GRAPH-level========================
         #=========================================================
@@ -273,49 +272,15 @@ class DeepGate3(nn.Module):
             hop_hf = []
             hf_masks = []
             
-
-            # new_pi_idx = torch.argsort(torch.where(g.hop_pi_stats==-1,1,0),dim=1,descending=False,stable=True)
-            # pi_idx = torch.argwhere(g.hop_pi_stats!=-1)
-            pi_emb_wt = torch.zeros([g.hop_pi.shape[0], g.hop_pi.shape[1], hf.shape[-1]]).to(hf.device)
-            pi_idx = torch.argwhere(g.hop_pi_stats!=-1)
             pi_emb = hf[g.hop_pi]
-            
-            pi_emb[g.hop_pi_stats==0] = self.zero_token
             pi_emb[g.hop_pi_stats==1] = self.one_token
+            pi_emb[g.hop_pi_stats==0] = self.zero_token
             pi_emb[g.hop_pi_stats==-1] = self.dc_token 
             pi_emb[g.hop_pi_stats==-2] = self.pad_token.to(hf.device)
             po_emb = hf[g.hop_po]
             hop_hf = torch.cat([self.cls_token_hf.unsqueeze(0).unsqueeze(0).repeat(pi_emb.shape[0],1,1),pi_emb,po_emb], dim=1)
             hf_masks = torch.where(g.hop_pi_stats==-1,1,0)
-            hf_masks = torch.cat([torch.ones(g.hop_pi_stats.shape[0],1).to(hf.device),g.hop_pi_stats,torch.ones(g.hop_pi_stats.shape[0],1).to(hf.device)],dim=1)
-            # for i in range(g.hop_po.shape[0]):
-            #     pi_idx = g.hop_pi[i][g.hop_pi_stats[i]!=-1].squeeze(-1)
-            #     pi_hop_stats = g.hop_pi_stats[i]
-            #     pi_emb = hf[pi_idx]
-            #     pi_emb = []
-            #     for j in range(8):
-            #         if pi_hop_stats[j] == -1:
-            #             continue
-            #         elif pi_hop_stats[j] == 0:
-            #             pi_emb.append(self.zero_token)
-            #         elif pi_hop_stats[j] == 1:
-            #             pi_emb.append(self.one_token)
-            #         elif pi_hop_stats[j] == 2:
-            #             pi_emb.append(hf[g.hop_pi[i][j]])
-            #     # add dont care token
-            #     while len(pi_emb) < 6:
-            #         pi_emb.insert(0,self.dc_token)
-            #     # pad seq to fixed length
-            #     hf_mask = [1 for _ in range(len(pi_emb))]
-            #     while len(pi_emb) < 8:
-            #         pi_emb.append(self.pad_token.to(hf.device))
-            #         hf_mask.append(0)
-            #     pi_emb = torch.stack(pi_emb) # 8 128
-            #     po_emb = hf[g.hop_po[i]] # 1 128
-            #     hop_hf.append(torch.cat([self.cls_token_hf.unsqueeze(0),pi_emb,po_emb], dim=0)) 
-            #     hf_mask.insert(0,1)
-            #     hf_mask.append(1)
-            #     hf_masks.append(torch.tensor(hf_mask))
+            hf_masks = torch.cat([torch.zeros(g.hop_pi_stats.shape[0],1).to(hf.device),g.hop_pi_stats,torch.zeros(g.hop_pi_stats.shape[0],1).to(hf.device)],dim=1)
             
             # hop_hf = torch.stack(hop_hf) #bs seq_len hidden
             pos = torch.arange(hop_hf.shape[1]).unsqueeze(0).repeat(hop_hf.shape[0],1).to(hf.device)
@@ -363,8 +328,8 @@ class DeepGate3(nn.Module):
             on_hop_logits = self.on_hop_head(on_hop_emb)
 
 
-        print('dg3 graph-level time:{:.2f}'.format(time.time()-t))
-        t = time.time()
+        # print('dg3 graph-level time:{:.2f}'.format(time.time()-t))
+        # t = time.time()
         
         result = {
             'emb':

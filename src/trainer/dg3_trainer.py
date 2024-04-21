@@ -466,12 +466,11 @@ class Trainer():
             loss = loss_dict['loss']
             
 
-            t = time.time()
+
             if phase == 'train':
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-            print('bachward time:{:.4f}'.format(time.time() - t))
             
             if self.local_rank == 0:
                 # Bar.suffix = '[{:}/{:}] |Tot: {total:} |ETA: {eta:} '.format(iter_id, len(dataset), total=bar.elapsed_td, eta=bar.eta_td)
