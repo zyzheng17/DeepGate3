@@ -1,7 +1,7 @@
 #!/bin/bash
 NUM_PROC=4
 GPUS=0,1,2,3
-DATA_RATIO=100
+DATA_RATIO=1
 
 python3 -m torch.distributed.launch --nproc_per_node=$NUM_PROC --master_port=29502 ./src/train_dg3.py \
  --exp_id train_${DATA_RATIO}p \
