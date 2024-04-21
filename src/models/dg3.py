@@ -151,13 +151,14 @@ class DeepGate3(nn.Module):
         
     def forward(self, g, skip_path=False, skip_hop=False):
 
-
+        # t = time.time()
         if self.args.workload:
             hs, hf = self.tokenizer(g, g.prob)
         else:
             hs, hf = self.tokenizer(g)
         hf = hf.detach()
         hs = hs.detach()
+        # print('dg2 time:{:.2f}'.format(time.time()-t))
         # t = time.time()
 
         # hf = g.hf.detach()
