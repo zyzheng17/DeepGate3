@@ -111,9 +111,9 @@ if __name__ == '__main__':
         'hop_num': 0.5, 
         'hop_lv': 0.5, 
         'hop_onhop': 1, 
-        'path_onpath': 1, 
-        'path_len': 0.5, 
-        'path_and': 1
+        'path_onpath': 0, 
+        'path_len': 0, 
+        'path_and': 0
     })
     trainer.train(100, train_dataset, val_dataset)
     
