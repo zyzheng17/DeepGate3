@@ -47,7 +47,7 @@ def generate_hs_init(G, hs, no_dim):
             pi_mask = (G.batch == batch_idx) & (G.forward_level == 0)
         pi_node = G.forward_index[pi_mask]
         pi_vec = generate_orthogonal_vectors(len(pi_node), no_dim)
-        hs[pi_node] = torch.tensor(pi_vec, dtype=torch.float)
+        hs[pi_node] = torch.tensor(np.array(pi_vec), dtype=torch.float)
     
     return hs, -1
 
