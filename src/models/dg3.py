@@ -11,6 +11,7 @@ from .path_tf import Path_Transformer
 from .baseline_tf import Baseline_Transformer
 from .mlp import MLP
 from .tf_pool import tf_Pooling
+from dg_datasets.dg3_multi_parser import OrderedData
 import numpy as np
 _transformer_factory = {
     'baseline': None,
@@ -21,6 +22,25 @@ _transformer_factory = {
 
 import torch.nn as nn
 import time
+
+def build_graph(g, area_nodes, area_nodes_stats, area_faninout_cone, prob):
+    area_g = OrderedData()
+    nodes = area_nodes[area_nodes != -1]
+    pi_mask = (area_nodes_stats == 1)[:len(nodes)]
+    area_g.nodes = nodes
+    area_g.gate = g.gate[nodes]
+    area_g.gate[pi_mask] = 0
+    area_g.prob = prob[nodes]
+    area_g.edge_index = g.edge_index
+    area_g.forward_level = g.forward_level[nodes]
+    area_g.backward_level = g.backward_level[nodes]
+    area_g.forward_index = torch.tensor(range(len(nodes)))
+    area_g.backward_index = torch.tensor(range(len(nodes)))
+    
+    area_g.fanin_fanout_cones = area_faninout_cone
+    area_g.batch = torch.zeros(len(nodes), dtype=torch.long)
+    return area_g
+
 class DeepGate3(nn.Module):
     def __init__(self, args):
         super().__init__()
@@ -148,33 +168,64 @@ class DeepGate3(nn.Module):
                 state_dict[k] = model_state_dict[k]
         self.load_state_dict(state_dict, strict=False)
         
+    def forward_large(self, g):
+        assert self.args.workload
+        all_area_nodes = g.area_nodes
+        all_area_nodes_stats = g.area_nodes_stats
+        all_area_lev = g.area_lev
+        all_area_faninout_cone = g.area_fanin_fanout_cone
+        prob = g.prob
+        glo_hs = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
+        glo_hf = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
         
-    def forward(self, g, skip_path=False, skip_hop=False):
-
-        # t = time.time()
-        if self.args.workload:
-            hs, hf = self.tokenizer(g, g.prob)
+        for area_idx, area_nodes in enumerate(all_area_nodes):
+            area_nodes_stats = all_area_nodes_stats[area_idx]
+            area_faninout_cone = all_area_faninout_cone[area_idx]
+            area_g = build_graph(g, area_nodes, area_nodes_stats, area_faninout_cone, prob)
+            area_g = area_g.to(g.x.device)
+            hs, hf = self.tokenizer(area_g, area_g.prob)
+            if self.tf_arch != 'baseline':
+                hf_tf, hs_tf = self.transformer(area_g, hf, hs)
+                #function
+                hf = hf + hf_tf
+                #structure
+                hs = hs + hs_tf
+            
+            area_prob = self.readout_prob(hf).squeeze(-1)
+            prob[area_g.nodes] = area_prob.detach()
+            glo_hs[area_g.nodes] = hs.detach()
+            glo_hf[area_g.nodes] = hf.detach()
+            
+        return glo_hs, glo_hf
+        
+    def forward(self, g, skip_path=False, skip_hop=False, large_ckt=False):
+        if large_ckt:
+            hs, hf = self.forward_large(g)
         else:
-            hs, hf = self.tokenizer(g)
-        hf = hf.detach()
-        hs = hs.detach()
-        # print('dg2 time:{:.2f}'.format(time.time()-t))
-        # t = time.time()
+            # t = time.time()
+            if self.args.workload:
+                hs, hf = self.tokenizer(g, g.prob)
+            else:
+                hs, hf = self.tokenizer(g)
+            hf = hf.detach()
+            hs = hs.detach()
+            # print('dg2 time:{:.2f}'.format(time.time()-t))
+            # t = time.time()
 
-        # hf = g.hf.detach()
-        # hs = g.hs.detach()
-        # Refine-Transformer 
+            # hf = g.hf.detach()
+            # hs = g.hs.detach()
+            # Refine-Transformer 
 
-        if self.tf_arch != 'baseline':
+            if self.tf_arch != 'baseline':
 
-            hf_tf, hs_tf = self.transformer(g, hf, hs)
-            #function
-            hf = hf + hf_tf
-            #structure
-            hs = hs + hs_tf
+                hf_tf, hs_tf = self.transformer(g, hf, hs)
+                #function
+                hf = hf + hf_tf
+                #structure
+                hs = hs + hs_tf
 
-        # print('dg3 refine transformer time:{:.2f}'.format(time.time()-t))
-        # t = time.time()
+            # print('dg3 refine transformer time:{:.2f}'.format(time.time()-t))
+            # t = time.time()
 
         #=========================================================
         #======================GATE-level=========================

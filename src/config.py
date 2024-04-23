@@ -10,6 +10,7 @@ def get_parse_args():
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--gpus', default='-1', type=str)
     parser.add_argument('--test', action='store_true', default=False)
+    parser.add_argument('--enable_cut', action='store_true', default=False)
     
     # Dataset
     parser.add_argument('--data_dir', default='/uac/gds/zyzheng23/projects/DeepGate3-Transformer/data/dg3_80k')

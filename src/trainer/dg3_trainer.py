@@ -128,14 +128,7 @@ class Trainer():
         self.loss_weight = {}
         for key in self.loss_keys:
             self.loss_weight[key] = 1.0
-        if not os.path.exists(save_dir):
-            os.mkdir(save_dir)
-        self.log_dir = os.path.join(save_dir, training_id)
-        if not os.path.exists(self.log_dir):
-            os.mkdir(self.log_dir)
-        # Log Path
-        time_str = time.strftime('%Y-%m-%d-%H-%M')
-        self.log_path = os.path.join(self.log_dir, 'log-{}.txt'.format(time_str))
+        
         
         self.batch_size = batch_size
         self.num_workers = num_workers
@@ -157,6 +150,16 @@ class Trainer():
             ))
         else:
             print('Training in single device: ', self.device)
+            
+        if self.local_rank == 0:
+            if not os.path.exists(save_dir):
+                os.mkdir(save_dir)
+            self.log_dir = os.path.join(save_dir, training_id)
+            if not os.path.exists(self.log_dir):
+                os.mkdir(self.log_dir)
+            # Log Path
+            time_str = time.strftime('%Y-%m-%d-%H-%M')
+            self.log_path = os.path.join(self.log_dir, 'log-{}.txt'.format(time_str))
             
         # Train 
         self.skip_path = False
@@ -265,7 +268,7 @@ class Trainer():
 
     def run_batch(self, batch):
 
-        result_dict = self.model(batch, self.skip_path, self.skip_hop)
+        result_dict = self.model(batch, self.skip_path, self.skip_hop, self.args.enable_cut)
         
         #=========================================================
         #======================GATE-level=========================

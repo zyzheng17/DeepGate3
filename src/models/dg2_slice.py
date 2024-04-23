@@ -99,7 +99,7 @@ class DeepGate2(dg.Model):
             prob_mask = [0.5] * len(G.gate)
             prob_mask = torch.tensor(prob_mask).unsqueeze(1)
         else:
-            prob_mask = PI_prob.clone()
+            prob_mask = copy.deepcopy(PI_prob)
         prob_mask = prob_mask.unsqueeze(-1).to(device)
         prob_mask[G.gate != 0] = -1
         hf = prob_mask.expand(num_nodes, self.dim_hidden).clone()
@@ -108,47 +108,40 @@ class DeepGate2(dg.Model):
         hs = hs.to(device)
         hf = hf.to(device)
         
-        edge_index = G.edge_index
-
         node_state = torch.cat([hs, hf], dim=-1)
-        and_mask = (G.gate == 1).squeeze(1)
-        not_mask = (G.gate == 2).squeeze(1)
+        
+        and_slices, not_slices, edge_slices = get_slices(G)
 
         for _ in range(self.num_rounds):
             for level in range(1, num_layers_f):
-                # forward layer
-                layer_mask = G.forward_level == level
-
-                # AND Gate
-                l_and_node = G.forward_index[layer_mask & and_mask]
+                l_and_node = and_slices[level]
                 if l_and_node.size(0) > 0:
-                    and_edge_index, and_edge_attr = dg.dag_utils.subgraph(l_and_node, edge_index, dim=1)
-                    
+                    and_edge_index = edge_slices[level]
                     # Update structure hidden state
-                    msg = self.aggr_and_strc(hs, and_edge_index, and_edge_attr)
+                    msg = self.aggr_and_strc(hs, and_edge_index)
                     and_msg = torch.index_select(msg, dim=0, index=l_and_node)
                     hs_and = torch.index_select(hs, dim=0, index=l_and_node)
                     _, hs_and = self.update_and_strc(and_msg.unsqueeze(0), hs_and.unsqueeze(0))
                     hs[l_and_node, :] = hs_and.squeeze(0)
                     # Update function hidden state
-                    msg = self.aggr_and_func(node_state, and_edge_index, and_edge_attr)
+                    msg = self.aggr_and_func(node_state, and_edge_index)
                     and_msg = torch.index_select(msg, dim=0, index=l_and_node)
                     hf_and = torch.index_select(hf, dim=0, index=l_and_node)
                     _, hf_and = self.update_and_func(and_msg.unsqueeze(0), hf_and.unsqueeze(0))
                     hf[l_and_node, :] = hf_and.squeeze(0)
 
                 # NOT Gate
-                l_not_node = G.forward_index[layer_mask & not_mask]
+                l_not_node = not_slices[level]
                 if l_not_node.size(0) > 0:
-                    not_edge_index, not_edge_attr = dg.dag_utils.subgraph(l_not_node, edge_index, dim=1)
+                    not_edge_index = edge_slices[level]
                     # Update structure hidden state
-                    msg = self.aggr_not_strc(hs, not_edge_index, not_edge_attr)
+                    msg = self.aggr_not_strc(hs, not_edge_index)
                     not_msg = torch.index_select(msg, dim=0, index=l_not_node)
                     hs_not = torch.index_select(hs, dim=0, index=l_not_node)
                     _, hs_not = self.update_not_strc(not_msg.unsqueeze(0), hs_not.unsqueeze(0))
                     hs[l_not_node, :] = hs_not.squeeze(0)
                     # Update function hidden state
-                    msg = self.aggr_not_func(hf, not_edge_index, not_edge_attr)
+                    msg = self.aggr_not_func(hf, not_edge_index)
                     not_msg = torch.index_select(msg, dim=0, index=l_not_node)
                     hf_not = torch.index_select(hf, dim=0, index=l_not_node)
                     _, hf_not = self.update_not_func(not_msg.unsqueeze(0), hf_not.unsqueeze(0))
