@@ -111,7 +111,7 @@ class Trainer():
                  batch_size=32, 
                  num_workers=8, 
                  distributed = False, 
-                 loss = 'l2'
+                 loss = 'l2',
                  ):
         super(Trainer, self).__init__()
         # Config
@@ -568,6 +568,7 @@ class Trainer():
             # print(output_log)
 
     def train(self, num_epoch, train_datasets, val_dataset):
+
         train_dataset_list = []
         for train_dataset in train_datasets:
             # Distribute Dataset
@@ -598,6 +599,7 @@ class Trainer():
         # TODO: By Stone: modify the following code to support multiple datasets
         print('[INFO] Start training, lr = {:.4f}'.format(self.optimizer.param_groups[0]['lr']))
         for epoch in range(num_epoch):
+
             for phase in ['train', 'val']:
                 if phase == 'train':
                     self.model.train()
@@ -628,4 +630,25 @@ class Trainer():
         # del train_dataset
         # del val_dataset
         
+    def test(self, val_dataset):
+
+        if self.distributed:
+            val_sampler = torch.utils.data.distributed.DistributedSampler(
+                val_dataset,
+                num_replicas=self.world_size,
+                rank=self.rank
+            )
+            
+        if self.distributed: 
+            val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, drop_last=True,
+                                    num_workers=self.num_workers, sampler=val_sampler)
+        else:
+            val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=self.num_workers)
+        
+        self.model.eval()
+        self.model.to(self.device)
+        self.run_dataset(0, val_dataset, 'val')
+
+        
+
 
