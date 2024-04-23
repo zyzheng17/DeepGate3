@@ -47,9 +47,35 @@ def generate_hs_init(G, hs, no_dim):
             pi_mask = (G.batch == batch_idx) & (G.forward_level == 0)
         pi_node = G.forward_index[pi_mask]
         pi_vec = generate_orthogonal_vectors(len(pi_node), no_dim)
-        hs[pi_node] = torch.tensor(pi_vec, dtype=torch.float)
+        hs[pi_node] = torch.tensor(np.array(pi_vec), dtype=torch.float)
     
     return hs, -1
+
+def get_slices(G):
+    device = G.gate.device
+    edge_index = G.edge_index
+    
+    # Edge slices 
+    edge_level = torch.index_select(G.forward_level, dim=0, index=edge_index[1])
+    # sort edge according to level
+    edge_indices = torch.argsort(edge_level)
+    edge_index = edge_index[:, edge_indices]
+    edge_level_cnt = torch.bincount(edge_level).tolist()
+
+    edge_index_slices = torch.split(edge_index, list(edge_level_cnt), dim=1)
+    
+    # Index slices
+    and_index_slices = []
+    not_index_slices = []
+    and_mask = (G.gate == 1).squeeze(1)
+    not_mask = (G.gate == 2).squeeze(1)
+    for level in range(0, torch.max(G.forward_level).item() + 1):
+        and_level_nodes = torch.nonzero((G.forward_level == level) & and_mask).squeeze(1)
+        not_level_nodes = torch.nonzero((G.forward_level == level) & not_mask).squeeze(1)
+        and_index_slices.append(and_level_nodes)
+        not_index_slices.append(not_level_nodes)
+    
+    return and_index_slices, not_index_slices, edge_index_slices
 
 class DeepGate2(dg.Model):
     def __init__(self, num_rounds=1, dim_hidden=128, enable_encode=True, enable_reverse=False):
@@ -63,10 +89,9 @@ class DeepGate2(dg.Model):
         # initialize the structure hidden state
         if self.enable_encode:
             hs = torch.zeros(num_nodes, self.dim_hidden)
-            hs, max_sim = generate_hs_init(G, hs, self.dim_hidden)
+            hs, _ = generate_hs_init(G, hs, self.dim_hidden)
         else:
             hs = torch.zeros(num_nodes, self.dim_hidden)
-            max_sim = 0
         
         # initialize the function hidden state
         # prob_mask = copy.deepcopy(G.prob)
@@ -74,7 +99,7 @@ class DeepGate2(dg.Model):
             prob_mask = [0.5] * len(G.gate)
             prob_mask = torch.tensor(prob_mask).unsqueeze(1)
         else:
-            prob_mask = copy.deepcopy(PI_prob)
+            prob_mask = PI_prob.clone()
         prob_mask = prob_mask.unsqueeze(-1).to(device)
         prob_mask[G.gate != 0] = -1
         hf = prob_mask.expand(num_nodes, self.dim_hidden).clone()

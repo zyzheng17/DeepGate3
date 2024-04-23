@@ -31,11 +31,21 @@ def build_graph(g, area_nodes, area_nodes_stats, area_faninout_cone, prob):
     area_g.gate = g.gate[nodes]
     area_g.gate[pi_mask] = 0
     area_g.prob = prob[nodes]
-    area_g.edge_index = g.edge_index
     area_g.forward_level = g.forward_level[nodes]
     area_g.backward_level = g.backward_level[nodes]
     area_g.forward_index = torch.tensor(range(len(nodes)))
     area_g.backward_index = torch.tensor(range(len(nodes)))
+    
+    # Edge_index
+    glo_to_area = {}
+    for i, node in enumerate(nodes):
+        glo_to_area[node.item()] = i
+    area_edge_index = []
+    for edge in g.edge_index.t():
+        if edge[0].item() in glo_to_area and edge[1].item() in glo_to_area:
+            area_edge_index.append([glo_to_area[edge[0].item()], glo_to_area[edge[1].item()]])
+    area_edge_index = torch.tensor(area_edge_index).t()
+    area_g.edge_index = area_edge_index
     
     area_g.fanin_fanout_cones = area_faninout_cone
     area_g.batch = torch.zeros(len(nodes), dtype=torch.long)
