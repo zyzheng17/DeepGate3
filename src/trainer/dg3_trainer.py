@@ -453,6 +453,9 @@ class Trainer():
                 time_stamp = time.time()
             batch = batch.to(self.device)        
             
+            if 'max' not in batch.name:
+                continue
+            
             loss_dict, metric_dict = self.run_batch(batch)
 
             for loss_key in loss_dict:

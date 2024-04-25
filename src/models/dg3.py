@@ -51,6 +51,23 @@ def build_graph(g, area_nodes, area_nodes_stats, area_faninout_cone, prob):
     area_g.batch = torch.zeros(len(nodes), dtype=torch.long)
     return area_g
 
+def merge_area_g(batch_g, g):
+    no_nodes = batch_g.nodes.shape[0]
+    batch_g.nodes = torch.cat([batch_g.nodes, g.nodes])
+    batch_g.gate = torch.cat([batch_g.gate, g.gate])
+    batch_g.prob = torch.cat([batch_g.prob, g.prob])
+    batch_g.forward_level = torch.cat([batch_g.forward_level, g.forward_level])
+    batch_g.backward_level = torch.cat([batch_g.backward_level, g.backward_level])
+    batch_g.edge_index = torch.cat([batch_g.edge_index, g.edge_index + no_nodes], dim=1)
+    batch_g.fanin_fanout_cones = torch.cat([batch_g.fanin_fanout_cones, g.fanin_fanout_cones], dim=0)
+    batch_g.batch = torch.cat([batch_g.batch, torch.tensor([batch_g.batch.max() + 1] * len(g.nodes)).to(batch_g.batch.device)])
+    
+    batch_g.forward_index = torch.tensor(range(len(batch_g.nodes))).to(batch_g.batch.device)
+    batch_g.backward_index = torch.tensor(range(len(batch_g.nodes))).to(batch_g.batch.device)
+    
+    return batch_g
+    
+
 class DeepGate3(nn.Module):
     def __init__(self, args):
         super().__init__()
@@ -178,7 +195,7 @@ class DeepGate3(nn.Module):
                 state_dict[k] = model_state_dict[k]
         self.load_state_dict(state_dict, strict=False)
         
-    def forward_large(self, g):
+    def forward_large(self, g, max_area_batch=8):
         assert self.args.workload
         all_area_nodes = g.area_nodes
         all_area_nodes_stats = g.area_nodes_stats
@@ -188,23 +205,34 @@ class DeepGate3(nn.Module):
         glo_hs = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
         glo_hf = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
         
+        batch_area_g_list = []
+        curr_bs = 0
         for area_idx, area_nodes in enumerate(all_area_nodes):
             area_nodes_stats = all_area_nodes_stats[area_idx]
             area_faninout_cone = all_area_faninout_cone[area_idx]
             area_g = build_graph(g, area_nodes, area_nodes_stats, area_faninout_cone, prob)
             area_g = area_g.to(g.x.device)
-            hs, hf = self.tokenizer(area_g, area_g.prob)
+            if curr_bs == 0:
+                batch_area_g = area_g.clone()
+            else:
+                batch_area_g = merge_area_g(batch_area_g, area_g)
+            curr_bs = (curr_bs + 1) % max_area_batch
+            if curr_bs == 0:
+                batch_area_g_list.append(batch_area_g)
+        if curr_bs != 0:
+            batch_area_g_list.append(batch_area_g)
+        
+        for batch_idx, batch in enumerate(batch_area_g_list):
+            hs, hf = self.tokenizer(batch, batch.prob)
             if self.tf_arch != 'baseline':
-                hf_tf, hs_tf = self.transformer(area_g, hf, hs)
+                hf_tf, hs_tf = self.transformer(batch, hf, hs)
                 #function
                 hf = hf + hf_tf
                 #structure
                 hs = hs + hs_tf
-            
-            area_prob = self.readout_prob(hf).squeeze(-1)
-            prob[area_g.nodes] = area_prob.detach()
-            glo_hs[area_g.nodes] = hs.detach()
-            glo_hf[area_g.nodes] = hf.detach()
+            prob = self.readout_prob(hf).squeeze(-1)
+            glo_hs[batch.nodes] = hs.detach()
+            glo_hf[batch.nodes] = hf.detach()
             
         return glo_hs, glo_hf
         
