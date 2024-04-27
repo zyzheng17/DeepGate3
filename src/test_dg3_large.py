@@ -66,7 +66,7 @@ if __name__ == '__main__':
 
     # Stone: Support multiple npz files
     parser = MultiNpzParser(args.data_dir, args.npz_dir, args.test_npz_path, args, random_shuffle=True)
-    train_dataset, val_dataset = parser.get_dataset()
+    val_dataset, _ = parser.get_dataset()
 
     trainer = Trainer(
         args=args, 
@@ -81,6 +81,6 @@ if __name__ == '__main__':
         'path_len': 0, 
         'path_and': 0
     })
-    trainer.train(args.epoch, train_dataset, val_dataset)
+    trainer.test(val_dataset)
     
     

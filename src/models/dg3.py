@@ -63,8 +63,9 @@ class DeepGate3(nn.Module):
         self.tokenizer = DeepGate2()
         # Stone: Modify here
         self.tokenizer.load_pretrained(args.pretrained_model_path)
-        for param in self.tokenizer.parameters():
-            param.requires_grad = False
+
+        # for param in self.tokenizer.parameters():
+        #     param.requires_grad = False
 
         #special token
         self.cls_token_hf = nn.Parameter(torch.randn([self.hidden,]))
@@ -184,16 +185,25 @@ class DeepGate3(nn.Module):
         all_area_nodes_stats = g.area_nodes_stats
         all_area_lev = g.area_lev
         all_area_faninout_cone = g.area_fanin_fanout_cone
-        prob = g.prob
+        prob = g.prob.clone()
         glo_hs = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
         glo_hf = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
+
+        # glo_hs, glo_hf = self.tokenizer(g, g.prob)
         
         for area_idx, area_nodes in enumerate(all_area_nodes):
+            if area_idx%10==0:
+                print(f'encode area{area_idx}')
             area_nodes_stats = all_area_nodes_stats[area_idx]
             area_faninout_cone = all_area_faninout_cone[area_idx]
             area_g = build_graph(g, area_nodes, area_nodes_stats, area_faninout_cone, prob)
             area_g = area_g.to(g.x.device)
+
             hs, hf = self.tokenizer(area_g, area_g.prob)
+
+            # hs = glo_hs[area_nodes[area_nodes!=-1]]
+            # hf = glo_hf[area_nodes[area_nodes!=-1]]
+
             if self.tf_arch != 'baseline':
                 hf_tf, hs_tf = self.transformer(area_g, hf, hs)
                 #function
@@ -217,8 +227,10 @@ class DeepGate3(nn.Module):
                 hs, hf = self.tokenizer(g, g.prob)
             else:
                 hs, hf = self.tokenizer(g)
-            hf = hf.detach()
-            hs = hs.detach()
+
+            # hf = hf.detach()
+            # hs = hs.detach()
+
             # print('dg2 time:{:.2f}'.format(time.time()-t))
             # t = time.time()
 

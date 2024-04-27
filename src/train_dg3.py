@@ -59,6 +59,7 @@ if __name__ == '__main__':
         
     # Create Model 
     model = DeepGate3(args)
+    model.load('/home/zyzheng23/project/exp/train_100p_nonfix/model_last.pth')
     # model = DeepGate3_structure(args)
     # Train 
     get_param(model)

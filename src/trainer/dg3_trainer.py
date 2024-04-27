@@ -266,9 +266,11 @@ class Trainer():
         else:
             return False
 
-    def run_batch(self, batch):
-
+    def run_batch(self, batch, phase='train'):
+        
         result_dict = self.model(batch, self.skip_path, self.skip_hop, self.args.enable_cut)
+
+
         
         #=========================================================
         #======================GATE-level=========================
@@ -451,9 +453,12 @@ class Trainer():
         for iter_id, batch in enumerate(dataset):
             if self.local_rank == 0:
                 time_stamp = time.time()
+            #TODO：记得改
+            # if torch.max(batch.area_idx)>400:
+            #     continue
             batch = batch.to(self.device)        
             
-            loss_dict, metric_dict = self.run_batch(batch)
+            loss_dict, metric_dict = self.run_batch(batch,phase=phase)
 
             for loss_key in loss_dict:
                 if self.args.skip_path and 'path' in loss_key:
@@ -596,7 +601,6 @@ class Trainer():
             val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=self.num_workers)
         
         
-        # TODO: By Stone: modify the following code to support multiple datasets
         print('[INFO] Start training, lr = {:.4f}'.format(self.optimizer.param_groups[0]['lr']))
         for epoch in range(num_epoch):
 
@@ -604,11 +608,13 @@ class Trainer():
                 if phase == 'train':
                     self.model.train()
                     self.model.to(self.device)
+                    #TODO: 记得该回去
                     for train_dataset in train_dataset_list:
                         self.run_dataset(epoch, train_dataset, phase)
                 else:
                     self.model.eval()
                     self.model.to(self.device)
+                    # self.run_dataset(epoch, train_dataset_list[-1], phase)
                     self.run_dataset(epoch, val_dataset, phase)
 
             # Learning rate decay
@@ -630,24 +636,27 @@ class Trainer():
         # del train_dataset
         # del val_dataset
         
-    def test(self, val_dataset):
+    def test(self, val_datasets):
 
-        if self.distributed:
-            val_sampler = torch.utils.data.distributed.DistributedSampler(
-                val_dataset,
-                num_replicas=self.world_size,
-                rank=self.rank
-            )
-            
-        if self.distributed: 
-            val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, drop_last=True,
-                                    num_workers=self.num_workers, sampler=val_sampler)
-        else:
-            val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=self.num_workers)
+        val_dataset_list = []
+        for val_dataset in val_datasets:
+            # Distribute Dataset
+            if self.distributed:
+                sampler = torch.utils.data.distributed.DistributedSampler(
+                    val_dataset,
+                    num_replicas=self.world_size,
+                    rank=self.rank
+                )
+                val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, drop_last=True,
+                                        num_workers=self.num_workers, sampler=sampler)
+            else:
+                val_dataset = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=self.num_workers)
+            val_dataset_list.append(val_dataset)
         
         self.model.eval()
         self.model.to(self.device)
-        self.run_dataset(0, val_dataset, 'val')
+        for val_dataset in val_dataset_list:
+            self.run_dataset(0, val_dataset, 'large_val')
 
         
 
