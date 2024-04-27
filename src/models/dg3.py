@@ -96,6 +96,8 @@ class DeepGate3(nn.Module):
         self.hf_PositionalEmbedding = nn.Embedding(33,self.hidden)
         self.hs_PositionalEmbedding = nn.Embedding(33,self.hidden)
         self.Path_Pos = nn.Embedding(self.max_path_len,self.hidden)
+
+
         
         # Transformer 
         if args.tf_arch != 'baseline':

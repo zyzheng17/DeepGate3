@@ -37,6 +37,8 @@ class Plain_Transformer(nn.Sequential):
         TransformerEncoderLayer = nn.TransformerEncoderLayer(d_model=self.hidden, nhead=attn_heads, dropout=dropout, batch_first=True)
         self.function_transformer = nn.TransformerEncoder(TransformerEncoderLayer, num_layers=n_layers)
         self.structure_transformer = nn.TransformerEncoder(TransformerEncoderLayer, num_layers=n_layers)
+        self.hf_refine_Pos = nn.Embedding(512,self.hidden)
+        self.hs_refine_Pos = nn.Embedding(512,self.hidden)
 
 
 
@@ -61,9 +63,12 @@ class Plain_Transformer(nn.Sequential):
             padding_mask[i][:hf[g.batch==i].shape[0]] = 0
 
         padding_mask = torch.where(padding_mask==1, True, False)# Flase = compute attention, True = mask # inverse to fit nn.transformer
-                
-        hf_tf = self.function_transformer(mask_hop_states, src_key_padding_mask=padding_mask, mask = corr_m)
-        hs_tf = self.structure_transformer(mask_hop_states, src_key_padding_mask=padding_mask, mask = corr_m)
+        
+        pos = torch.arange(mask_hop_states.shape[1]).unsqueeze(0).repeat(mask_hop_states.shape[0],1).to(hf.device)
+        
+
+        hf_tf = self.function_transformer(mask_hop_states+self.hf_refine_Pos[pos], src_key_padding_mask=padding_mask, mask = corr_m)
+        hs_tf = self.structure_transformer(mask_hop_states+self.hf_refine_Pos[pos], src_key_padding_mask=padding_mask, mask = corr_m)
 
 
         for i in range(bs):
