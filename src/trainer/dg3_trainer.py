@@ -393,7 +393,8 @@ class Trainer():
             l_hop_lv * self.loss_weight['hop_lv'] + \
             l_hop_onhop * self.loss_weight['hop_onhop']
         
-        func_loss = 10 * func_loss / sum_weight
+        # func_loss = 10 * func_loss / sum_weight
+        func_loss = func_loss / sum_weight
         stru_loss = stru_loss / sum_weight
 
         loss = func_loss + stru_loss

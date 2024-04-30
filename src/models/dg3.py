@@ -256,15 +256,9 @@ class DeepGate3(nn.Module):
             # hf = hf.detach()
             # hs = hs.detach()
 
-            # print('dg2 time:{:.2f}'.format(time.time()-t))
-            # t = time.time()
-
-            # hf = g.hf.detach()
-            # hs = g.hs.detach()
             # Refine-Transformer 
 
             if self.tf_arch != 'baseline':
-
                 hf_tf, hs_tf = self.transformer(g, hf, hs)
                 #function
                 hf = hf + hf_tf
