@@ -609,7 +609,6 @@ class Trainer():
                 if phase == 'train':
                     self.model.train()
                     self.model.to(self.device)
-                    #TODO: 记得该回去
                     for train_dataset in train_dataset_list:
                         self.run_dataset(epoch, train_dataset, phase)
                 else:

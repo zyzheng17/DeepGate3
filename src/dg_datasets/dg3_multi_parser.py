@@ -10,11 +10,11 @@ import torch.nn.functional as F
 
 from deepgate.utils.data_utils import read_npz_file
 from typing import Optional, Callable, List
-from utils.dataset_utils import parse_pyg_dg3
+# from utils.dataset_utils import parse_pyg_dg3
 
-from utils.circuit_utils import complete_simulation, prepare_dg2_labels_cpp, \
-    get_fanin_fanout_cone, get_sample_paths, remove_unconnected, \
-    get_connection_pairs, get_hop_pair_labels
+# from utils.circuit_utils import complete_simulation, prepare_dg2_labels_cpp, \
+#     get_fanin_fanout_cone, get_sample_paths, remove_unconnected, \
+#     get_connection_pairs, get_hop_pair_labels
     
 NODE_CONNECT_SAMPLE_RATIO = 0.1
 NO_NODE_PATH = 10
@@ -143,6 +143,117 @@ class MultiNpzParser():
                 
                 graph = OrderedData()
                 succ = True
+                for key in circuits[cir_name].keys():
+                    if key == 'connect_pair_index' and len(circuits[cir_name][key]) == 0:
+                        succ = False
+                        break
+                    if 'prob' in key or 'sim' in key or 'ratio' in key or 'ged' in key:
+                        graph[key] = torch.tensor(circuits[cir_name][key], dtype=torch.float)
+                    elif key == 'hs' or key == 'hf':
+                        continue
+                        graph[key] = torch.tensor(circuits[cir_name][key], dtype=torch.float)
+                    else:
+                        graph[key] = torch.tensor(circuits[cir_name][key], dtype=torch.long)
+                if not succ:
+                    continue
+                graph.name = cir_name
+                data_list.append(graph)
+                tot_time = time.time() - start_time
+                
+                if self.debug and cir_idx > 40:
+                    break
+                
+            data, slices = self.collate(data_list)
+            torch.save((data, slices), self.processed_paths[0])
+            print('[INFO] Inmemory dataset save: ', self.processed_paths[0])
+            print('Total Circuits: {:} Total pairs: {:}'.format(len(data_list), tot_pairs))
+                
+        def process(self):
+            self.process_npz(self.npz_path)
+
+
+
+class LargeNpzParser():
+    def __init__(self, data_dir, npz_dir, test_npz_path, args, random_shuffle=True, trainval_split=0.9):
+        self.data_dir = data_dir
+        self.npz_dir = npz_dir
+        self.train_dataset = []
+        for npz_id, npz_path in enumerate(os.listdir(npz_dir)):
+            print('Parse NPZ: ', npz_path)
+            split_dataset = self.inmemory_dataset(data_dir, os.path.join(npz_dir, npz_path), args, npz_id, debug=args.debug)
+            if random_shuffle:
+                perm = torch.randperm(len(split_dataset))
+                split_dataset = split_dataset[perm]
+            self.train_dataset.append(split_dataset)
+        dataset = self.train_dataset[0]
+        data_len = len(dataset)
+        training_cutoff = int(data_len * trainval_split)
+        self.train_dataset = dataset[:training_cutoff]
+        self.val_dataset = dataset[training_cutoff:]
+
+        
+    def get_dataset(self):
+        return self.train_dataset, self.val_dataset
+    
+    class inmemory_dataset(InMemoryDataset):
+        def __init__(self, root, npz_path, args, npz_id, transform=None, pre_transform=None, pre_filter=None, debug=False):
+            self.name = 'npz_inmm_dataset'
+            self.npz_id = npz_id
+            self.root = root
+            self.args = args
+            self.npz_path = npz_path
+            self.debug = debug
+            super().__init__(root, transform, pre_transform, pre_filter)
+            self.data, self.slices = torch.load(self.processed_paths[0])
+        
+        @property
+        def raw_dir(self):
+            return self.root
+
+        @property
+        def processed_dir(self):
+            name = 'immemory_{}'.format(self.npz_id)
+            inmemory_path = os.path.join(self.root, name)
+            if os.path.exists(inmemory_path):
+                print('Inmemory Dataset Path: {}, Existed'.format(inmemory_path))
+            else:
+                print('Inmemory Dataset Path: {}, New Created'.format(inmemory_path))
+            
+            return inmemory_path
+
+        @property
+        def raw_file_names(self) -> List[str]:
+            return [self.npz_path]
+
+        @property
+        def processed_file_names(self) -> str:
+            return ['data.pt']
+
+        def download(self):
+            pass
+
+        def process_npz(self, npz_path):
+            data_list = []
+            tot_pairs = 0
+            circuits = read_npz_file(npz_path)['circuits'].item()
+            print('Parse NPZ Datset ...', npz_path)
+            tot_time = 0
+            
+            for cir_idx, cir_name in enumerate(circuits):
+                start_time = time.time()
+                # print('Parse: {}, {:} / {:} = {:.2f}%, Time: {:.2f}s, ETA: {:.2f}s, Curr Size: {:}'.format(
+                #     cir_name, cir_idx, len(circuits), cir_idx / len(circuits) * 100, 
+                #     tot_time, tot_time * (len(circuits) - cir_idx), 
+                #     len(data_list)
+                # ))
+                
+                graph = OrderedData()
+                succ = True
+
+                if 'area_nodes' not in circuits[cir_name].keys():
+                    print(cir_name)
+                    continue
+
                 for key in circuits[cir_name].keys():
                     if key == 'connect_pair_index' and len(circuits[cir_name][key]) == 0:
                         succ = False

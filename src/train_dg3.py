@@ -15,7 +15,7 @@ from models.dg3 import DeepGate3
 from dg_datasets.dataset_utils import npzitem_to_graph
 from dg_datasets.dg3_parser import NpzParser
 from dg_datasets.aig_parser import AIGParser
-from dg_datasets.dg3_multi_parser import MultiNpzParser
+from dg_datasets.dg3_multi_parser import MultiNpzParser,LargeNpzParser
 from bert_model.bert import BERT
 from trainer.dg3_trainer import Trainer
 import torch
@@ -59,7 +59,8 @@ if __name__ == '__main__':
         
     # Create Model 
     model = DeepGate3(args)
-    model.load('/home/zyzheng23/project/exp/train_100p_nonfix/model_last.pth')
+    #TODO:记得改
+    # model.load('/home/zyzheng23/project/exp/train_100p_nonfix/model_last.pth')
     # model = DeepGate3_structure(args)
     # Train 
     get_param(model)
@@ -69,9 +70,11 @@ if __name__ == '__main__':
     # parser = NpzParser(args.data_dir, args.circuit_path, args, debug=args.debug, random_shuffle=True)
     # parser = NpzParser(args.data_dir, args.circuit_path, args, random_shuffle=True)
     # train_dataset, val_dataset = parser.get_dataset()
-    
+    # parser = NpzParser(args.data_dir, args.npz_dir, args, random_shuffle=False)
+
     # Stone: Support multiple npz files
-    parser = MultiNpzParser(args.data_dir, args.npz_dir, args.test_npz_path, args, random_shuffle=True)
+    # parser = MultiNpzParser(args.data_dir, args.npz_dir, args.test_npz_path, args, random_shuffle=True)
+    parser = LargeNpzParser(args.data_dir, args.npz_dir, args.test_npz_path, args, random_shuffle=True)
     train_dataset, val_dataset = parser.get_dataset()
 
     trainer = Trainer(
@@ -85,7 +88,7 @@ if __name__ == '__main__':
     trainer.set_training_args(loss_weight={
         'path_onpath': 0, 
         'path_len': 0, 
-        'path_and': 0
+        'path_and': 0,
     })
     trainer.train(args.epoch, train_dataset, val_dataset)
     

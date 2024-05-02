@@ -1,6 +1,6 @@
-NUM_PROC=4
-GPUS=1,2,6,7
-DATA_RATIO=5
+NUM_PROC=8
+GPUS=0,1,2,3,4,5,6,7
+DATA_RATIO=50
 
 # NUM_PROC=1
 # GPUS=0
@@ -25,5 +25,5 @@ nohup python3 -m torch.distributed.launch --nproc_per_node=$NUM_PROC --master_po
  --npz_dir /home/zyzheng23/project/dg3_dataset/${DATA_RATIO}p \
  --pretrained_model_path ./DeepGate3-Transformer/trained/model_last_workload.pth \
  --tf_arch plain --lr 1e-4 \
- --workload --gpus ${GPUS} --batch_size 128 \
- >> /home/zyzheng23/project/DeepGate3-Transformer/exp/0428_plain_workload_${DATA_RATIO}p_unfreeze.log 2>&1 &
+ --workload --gpus ${GPUS} --batch_size 64 --epoch 500 \
+ >> /home/zyzheng23/project/DeepGate3-Transformer/exp/0430_plain_workload_${DATA_RATIO}p_unfreeze_500epoch.log 2>&1 &

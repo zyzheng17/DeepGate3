@@ -218,7 +218,7 @@ class DeepGate3(nn.Module):
             area_nodes_stats = all_area_nodes_stats[area_idx]
             area_faninout_cone = all_area_faninout_cone[area_idx]
             area_g = build_graph(g, area_nodes, area_nodes_stats, area_faninout_cone, prob)
-            area_g = area_g.to(g.x.device)
+            # area_g = area_g
             if curr_bs == 0:
                 batch_area_g = area_g.clone()
             else:
@@ -230,6 +230,7 @@ class DeepGate3(nn.Module):
             batch_area_g_list.append(batch_area_g)
         
         for batch_idx, batch in enumerate(batch_area_g_list):
+            batch = batch.to(g.x.device)
             hs, hf = self.tokenizer(batch, batch.prob)
             if self.tf_arch != 'baseline':
                 hf_tf, hs_tf = self.transformer(batch, hf, hs)

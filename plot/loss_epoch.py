@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-data_frac = [1,5,10,30,50,100]
+# data_frac = [1,5,10,30,50,100]
+data_frac = [5]
 mark = ['o','v','^','s','p','*']
 # mark = ['v','^','s','p','*']
 
@@ -15,24 +16,24 @@ for frac in data_frac:
     struc_loss[frac] = []
 
 
-frac = 1
-path = f'/home/zyzheng23/project/DeepGate3-Transformer/plot/exp_log/plain_workload_{frac}p_balanced_unfixed.log'
-with open(path,'r') as f:
-    lines = f.readlines()
-    for i,line in enumerate(lines):
-        if '(val)' in line and 'Iter: 5' in line:
-            l1 = float(lines[i+24].split(':')[-1])
-            overall_loss[frac].append(l1)
+# frac = 1
+# path = f'/home/zyzheng23/project/DeepGate3-Transformer/plot/exp_log/plain_workload_{frac}p_balanced_unfixed.log'
+# with open(path,'r') as f:
+#     lines = f.readlines()
+#     for i,line in enumerate(lines):
+#         if '(val)' in line and 'Iter: 5' in line:
+#             l1 = float(lines[i+24].split(':')[-1])
+#             overall_loss[frac].append(l1)
 
-            l2 = float(lines[i+25].split(':')[-1])
-            func_loss[frac].append(l2)
+#             l2 = float(lines[i+25].split(':')[-1])
+#             func_loss[frac].append(l2)
 
-            l3 = float(lines[i+26].split(':')[-1])
-            struc_loss[frac].append(l3)
+#             l3 = float(lines[i+26].split(':')[-1])
+#             struc_loss[frac].append(l3)
 
 
-for frac in data_frac[1:]:
-    path = f'/home/zyzheng23/project/DeepGate3-Transformer/plot/exp_log/plain_workload_{frac}p_balanced_unfixed.log'
+for frac in data_frac:
+    path = f'/home/zyzheng23/project/DeepGate3-Transformer/exp/0430_plain_workload_10p_unfreeze_500epoch.log'
     with open(path,'r') as f:
         lines = f.readlines()
         for i,line in enumerate(lines):
