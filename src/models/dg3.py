@@ -213,36 +213,57 @@ class DeepGate3(nn.Module):
         batch_area_g_list = []
         curr_bs = 0
         for area_idx, area_nodes in enumerate(all_area_nodes):
-            if area_idx%10==0:
-                print(f'encode area{area_idx}')
+            # if area_idx%10==0:
+            #     print(f'encode area{area_idx}')
             area_nodes_stats = all_area_nodes_stats[area_idx]
             area_faninout_cone = all_area_faninout_cone[area_idx]
             area_g = build_graph(g, area_nodes, area_nodes_stats, area_faninout_cone, prob)
-            # area_g = area_g
-            if curr_bs == 0:
-                batch_area_g = area_g.clone()
-            else:
-                batch_area_g = merge_area_g(batch_area_g, area_g)
-            curr_bs = (curr_bs + 1) % max_area_batch
-            if curr_bs == 0:
-                batch_area_g_list.append(batch_area_g)
-        if curr_bs != 0:
-            batch_area_g_list.append(batch_area_g)
-        
-        for batch_idx, batch in enumerate(batch_area_g_list):
-            batch = batch.to(g.x.device)
-            hs, hf = self.tokenizer(batch, batch.prob)
+
+            area_g = area_g.to(g.x.device)
+            hs, hf = self.tokenizer(area_g, area_g.prob)
             if self.tf_arch != 'baseline':
-                hf_tf, hs_tf = self.transformer(batch, hf, hs)
+                hf_tf, hs_tf = self.transformer(area_g, hf, hs)
                 #function
                 hf = hf + hf_tf
                 #structure
                 hs = hs + hs_tf
             prob = self.readout_prob(hf).squeeze(-1)
-            glo_hs[batch.nodes] = hs.detach()
-            glo_hf[batch.nodes] = hf.detach()
+            glo_hs[area_g.nodes] = hs.detach()
+            glo_hf[area_g.nodes] = hf.detach()
             
         return glo_hs, glo_hf
+
+        # for area_idx, area_nodes in enumerate(all_area_nodes):
+        #     # if area_idx%10==0:
+        #     #     print(f'encode area{area_idx}')
+        #     area_nodes_stats = all_area_nodes_stats[area_idx]
+        #     area_faninout_cone = all_area_faninout_cone[area_idx]
+        #     area_g = build_graph(g, area_nodes, area_nodes_stats, area_faninout_cone, prob)
+        #     # area_g = area_g
+        #     if curr_bs == 0:
+        #         batch_area_g = area_g.clone()
+        #     else:
+        #         batch_area_g = merge_area_g(batch_area_g, area_g)
+        #     curr_bs = (curr_bs + 1) % max_area_batch
+        #     if curr_bs == 0:
+        #         batch_area_g_list.append(batch_area_g)
+        # if curr_bs != 0:
+        #     batch_area_g_list.append(batch_area_g)
+        
+        # for batch_idx, batch in enumerate(batch_area_g_list):
+        #     batch = batch.to(g.x.device)
+        #     hs, hf = self.tokenizer(batch, batch.prob)
+        #     if self.tf_arch != 'baseline':
+        #         hf_tf, hs_tf = self.transformer(batch, hf, hs)
+        #         #function
+        #         hf = hf + hf_tf
+        #         #structure
+        #         hs = hs + hs_tf
+        #     prob = self.readout_prob(hf).squeeze(-1)
+        #     glo_hs[batch.nodes] = hs.detach()
+        #     glo_hf[batch.nodes] = hf.detach()
+            
+        # return glo_hs, glo_hf
         
     def forward(self, g, skip_path=False, skip_hop=False, large_ckt=False):
         if large_ckt:
@@ -272,8 +293,12 @@ class DeepGate3(nn.Module):
         #=========================================================
         #======================GATE-level=========================
         #=========================================================
-            
+
         #gate-level pretrain task : predict pari-wise TT sim
+        # max_len = min(g.tt_pair_index.shape[1],100000)
+        # gate_tt_sim = self.proj_gate_ttsim(torch.cat([hf[g.tt_pair_index[0,:max_len]],hf[g.tt_pair_index[1,:max_len]]],dim=-1))
+        # if g.tt_pair_index.shape[1] <= 1:
+        #     print(g)
         gate_tt_sim = self.proj_gate_ttsim(torch.cat([hf[g.tt_pair_index[0]],hf[g.tt_pair_index[1]]],dim=-1))
         gate_tt_sim = nn.Sigmoid()(gate_tt_sim)
 
@@ -284,6 +309,7 @@ class DeepGate3(nn.Module):
         pred_level = self.readout_level(hs)
 
         #gate-level pretrain task : predict connection
+        # max_len = min(g.connect_pair_index.shape[1],100000)
         gates = hs[g.connect_pair_index]
         gates = gates.permute(1,2,0).reshape(-1,self.hidden*2)
         pred_connect = self.connect_head(gates)
@@ -368,25 +394,27 @@ class DeepGate3(nn.Module):
             #graph-level pretrain task : predict truth table & pair-wise TT sim
             hop_hf = []
             hf_masks = []
-            
-            pi_emb = hf[g.hop_pi]
-            pi_emb[g.hop_pi_stats==1] = self.one_token
-            pi_emb[g.hop_pi_stats==0] = self.zero_token
-            pi_emb[g.hop_pi_stats==-1] = self.dc_token 
-            pi_emb[g.hop_pi_stats==-2] = self.pad_token.to(hf.device)
-            po_emb = hf[g.hop_po]
-            hop_hf = torch.cat([self.cls_token_hf.unsqueeze(0).unsqueeze(0).repeat(pi_emb.shape[0],1,1),pi_emb,po_emb], dim=1)
-            hf_masks = torch.where(g.hop_pi_stats==-1,1,0)
-            hf_masks = torch.cat([torch.zeros(g.hop_pi_stats.shape[0],1).to(hf.device),g.hop_pi_stats,torch.zeros(g.hop_pi_stats.shape[0],1).to(hf.device)],dim=1)
-            
-            # hop_hf = torch.stack(hop_hf) #bs seq_len hidden
-            pos = torch.arange(hop_hf.shape[1]).unsqueeze(0).repeat(hop_hf.shape[0],1).to(hf.device)
-            hop_hf = hop_hf + self.hf_PositionalEmbedding(pos)
+            if self.tf_arch!='baseline':
+                pi_emb = hf[g.hop_pi]
+                pi_emb[g.hop_pi_stats==1] = self.one_token
+                pi_emb[g.hop_pi_stats==0] = self.zero_token
+                pi_emb[g.hop_pi_stats==-1] = self.dc_token 
+                pi_emb[g.hop_pi_stats==-2] = self.pad_token.to(hf.device)
+                po_emb = hf[g.hop_po]
+                hop_hf = torch.cat([self.cls_token_hf.unsqueeze(0).unsqueeze(0).repeat(pi_emb.shape[0],1,1),pi_emb,po_emb], dim=1)
+                hf_masks = torch.where(g.hop_pi_stats==-1,1,0)
+                hf_masks = torch.cat([torch.zeros(g.hop_pi_stats.shape[0],1).to(hf.device),g.hop_pi_stats,torch.zeros(g.hop_pi_stats.shape[0],1).to(hf.device)],dim=1)
+                
+                # hop_hf = torch.stack(hop_hf) #bs seq_len hidden
+                pos = torch.arange(hop_hf.shape[1]).unsqueeze(0).repeat(hop_hf.shape[0],1).to(hf.device)
+                hop_hf = hop_hf + self.hf_PositionalEmbedding(pos)
 
-            # hf_masks = 1 - torch.stack(hf_masks).to(hf.device).float() #bs seq_len 
-            hf_masks = torch.where(hf_masks==1, True, False).to(hop_hf.device)
-            hop_hf = self.hop_func_tf(hop_hf,src_key_padding_mask = hf_masks)
-            hop_hf = hop_hf[:,0]
+                # hf_masks = 1 - torch.stack(hf_masks).to(hf.device).float() #bs seq_len 
+                hf_masks = torch.where(hf_masks==1, True, False).to(hop_hf.device)
+                hop_hf = self.hop_func_tf(hop_hf,src_key_padding_mask = hf_masks)
+                hop_hf = hop_hf[:,0]
+            else :
+                hop_hf = torch.mean(torch.cat([pi_emb,po_emb],dim=1),dim=1)
 
             #pair-wise TT sim prediction
             hop_tt_sim = self.proj_hop_ttsim(torch.cat([hop_hf[g.hop_forward_index[g.hop_pair_index[0]]],hop_hf[g.hop_forward_index[g.hop_pair_index[1]]]],dim=-1))
@@ -396,20 +424,22 @@ class DeepGate3(nn.Module):
             hop_tt = self.hop_head(hop_hf)
 
             # hop_hs = torch.stack(hop_hs) #bs seq_len hidden
-            hop_hs = hs[g.hop_nodes]
-            hop_hs = torch.cat([self.cls_token_hs.reshape(1,1,-1).repeat(hop_hs.shape[0],1,1),hop_hs],dim=1)
-            
-            pos = torch.arange(hop_hs.shape[1]).unsqueeze(0).repeat(hop_hs.shape[0],1).to(hs.device)
-            hop_hs = hop_hs + self.hs_PositionalEmbedding(pos)
+            if self.tf_arch!='baseline':
+                hop_hs = hs[g.hop_nodes]
+                hop_hs = torch.cat([self.cls_token_hs.reshape(1,1,-1).repeat(hop_hs.shape[0],1,1),hop_hs],dim=1)
+                
+                pos = torch.arange(hop_hs.shape[1]).unsqueeze(0).repeat(hop_hs.shape[0],1).to(hs.device)
+                hop_hs = hop_hs + self.hs_PositionalEmbedding(pos)
 
-            # hs_masks = 1 - torch.stack(hs_masks).to(hs.device).float() #bs seq_len 
-            hs_masks = 1 - g.hop_nodes_stats
-            hs_masks = torch.cat([torch.zeros([hs_masks.shape[0],1]).to(hs.device),hs_masks],dim=1)
-            hs_masks = torch.where(hs_masks==1, True, False).to(hop_hs.device)
+                # hs_masks = 1 - torch.stack(hs_masks).to(hs.device).float() #bs seq_len 
+                hs_masks = 1 - g.hop_nodes_stats
+                hs_masks = torch.cat([torch.zeros([hs_masks.shape[0],1]).to(hs.device),hs_masks],dim=1)
+                hs_masks = torch.where(hs_masks==1, True, False).to(hop_hs.device)
 
-            hop_hs = self.hop_struc_tf(hop_hs,src_key_padding_mask = hs_masks)
-            hop_hs = hop_hs[:,0]
+                hop_hs = self.hop_struc_tf(hop_hs,src_key_padding_mask = hs_masks)
+                hop_hs = hop_hs[:,0]
 
+            hop_hs = torch.mean(hs[g.hop_nodes],dim=1)
             #pari-wise GED prediction 
             pred_GED = self.proj_GED(torch.cat([hop_hs[g.hop_pair_index[0]],hop_hs[g.hop_pair_index[1]]],dim=-1))
             pred_GED = nn.Sigmoid()(pred_GED)
