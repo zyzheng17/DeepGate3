@@ -30,6 +30,9 @@ def build_graph(g, area_nodes, area_nodes_stats, area_faninout_cone, prob):
     area_g.nodes = nodes
     area_g.gate = g.gate[nodes]
     area_g.gate[pi_mask] = 0
+    # print(prob.shape)
+    # print(nodes.shape)
+    # print(torch.max(nodes))
     area_g.prob = prob[nodes]
     area_g.forward_level = g.forward_level[nodes]
     area_g.backward_level = g.backward_level[nodes]
@@ -199,72 +202,57 @@ class DeepGate3(nn.Module):
                 state_dict[k] = model_state_dict[k]
         self.load_state_dict(state_dict, strict=False)
         
-    def forward_large(self, g, max_area_batch=8):
+    def forward_large(self, g, max_area_batch=16):
         assert self.args.workload
         all_area_nodes = g.area_nodes
         all_area_nodes_stats = g.area_nodes_stats
         all_area_lev = g.area_lev
         all_area_faninout_cone = g.area_fanin_fanout_cone
         prob = g.prob.clone()
-        glo_hs = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
-        glo_hf = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
+        # glo_hs = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
+        # glo_hf = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
 
-        # glo_hs, glo_hf = self.tokenizer(g, g.prob)
+        glo_hs, glo_hf = self.tokenizer(g, g.prob)
         
         batch_area_g_list = []
         curr_bs = 0
+
+
         for area_idx, area_nodes in enumerate(all_area_nodes):
-            # if area_idx%10==0:
-            #     print(f'encode area{area_idx}')
+            if area_idx%10==0:
+                print(f'build graph {area_idx}')
             area_nodes_stats = all_area_nodes_stats[area_idx]
             area_faninout_cone = all_area_faninout_cone[area_idx]
-            area_g = build_graph(g, area_nodes, area_nodes_stats, area_faninout_cone, prob)
+            area_g = build_graph(g, area_nodes, area_nodes_stats, area_faninout_cone, prob).cpu()
+            # area_g = area_g
+            if curr_bs == 0:
+                batch_area_g = area_g.clone()
+            else:
+                batch_area_g = merge_area_g(batch_area_g, area_g)
+            curr_bs = (curr_bs + 1) % max_area_batch
+            if curr_bs == 0:
+                batch_area_g_list.append(batch_area_g)
+        if curr_bs != 0:
+            batch_area_g_list.append(batch_area_g)
+        
 
-            area_g = area_g.to(g.x.device)
-            hs, hf = self.tokenizer(area_g, area_g.prob)
+        for batch_idx, batch in enumerate(batch_area_g_list):
+            print(f'run batch {batch_idx}')
+            batch = batch.to(g.x.device)
+            # hs, hf = self.tokenizer(batch, batch.prob)
+            hs = glo_hs[batch.nodes]
+            hf = glo_hf[batch.nodes]
             if self.tf_arch != 'baseline':
-                hf_tf, hs_tf = self.transformer(area_g, hf, hs)
+                hf_tf, hs_tf = self.transformer(batch, hf, hs)
                 #function
                 hf = hf + hf_tf
                 #structure
                 hs = hs + hs_tf
-            prob = self.readout_prob(hf).squeeze(-1)
-            glo_hs[area_g.nodes] = hs.detach()
-            glo_hf[area_g.nodes] = hf.detach()
+            # prob = self.readout_prob(hf).squeeze(-1)
+            glo_hs[batch.nodes] = hs
+            glo_hf[batch.nodes] = hf
             
         return glo_hs, glo_hf
-
-        # for area_idx, area_nodes in enumerate(all_area_nodes):
-        #     # if area_idx%10==0:
-        #     #     print(f'encode area{area_idx}')
-        #     area_nodes_stats = all_area_nodes_stats[area_idx]
-        #     area_faninout_cone = all_area_faninout_cone[area_idx]
-        #     area_g = build_graph(g, area_nodes, area_nodes_stats, area_faninout_cone, prob)
-        #     # area_g = area_g
-        #     if curr_bs == 0:
-        #         batch_area_g = area_g.clone()
-        #     else:
-        #         batch_area_g = merge_area_g(batch_area_g, area_g)
-        #     curr_bs = (curr_bs + 1) % max_area_batch
-        #     if curr_bs == 0:
-        #         batch_area_g_list.append(batch_area_g)
-        # if curr_bs != 0:
-        #     batch_area_g_list.append(batch_area_g)
-        
-        # for batch_idx, batch in enumerate(batch_area_g_list):
-        #     batch = batch.to(g.x.device)
-        #     hs, hf = self.tokenizer(batch, batch.prob)
-        #     if self.tf_arch != 'baseline':
-        #         hf_tf, hs_tf = self.transformer(batch, hf, hs)
-        #         #function
-        #         hf = hf + hf_tf
-        #         #structure
-        #         hs = hs + hs_tf
-        #     prob = self.readout_prob(hf).squeeze(-1)
-        #     glo_hs[batch.nodes] = hs.detach()
-        #     glo_hf[batch.nodes] = hf.detach()
-            
-        # return glo_hs, glo_hf
         
     def forward(self, g, skip_path=False, skip_hop=False, large_ckt=False):
         if large_ckt:
