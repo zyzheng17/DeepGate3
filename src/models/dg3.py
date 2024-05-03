@@ -209,17 +209,18 @@ class DeepGate3(nn.Module):
         all_area_lev = g.area_lev
         all_area_faninout_cone = g.area_fanin_fanout_cone
         prob = g.prob.clone()
-        # glo_hs = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
-        # glo_hf = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
 
-        glo_hs, glo_hf = self.tokenizer(g, g.prob)
+        glo_hs = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
+        glo_hf = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
+
+        # glo_hs, glo_hf = self.tokenizer(g, g.prob)
         
         batch_area_g_list = []
         curr_bs = 0
 
 
         for area_idx, area_nodes in enumerate(all_area_nodes):
-            if area_idx%10==0:
+            if area_idx%50==0:
                 print(f'build graph {area_idx}')
             area_nodes_stats = all_area_nodes_stats[area_idx]
             area_faninout_cone = all_area_faninout_cone[area_idx]
@@ -239,9 +240,9 @@ class DeepGate3(nn.Module):
         for batch_idx, batch in enumerate(batch_area_g_list):
             print(f'run batch {batch_idx}')
             batch = batch.to(g.x.device)
-            # hs, hf = self.tokenizer(batch, batch.prob)
-            hs = glo_hs[batch.nodes]
-            hf = glo_hf[batch.nodes]
+            hs, hf = self.tokenizer(batch, batch.prob)
+            # hs = glo_hs[batch.nodes]
+            # hf = glo_hf[batch.nodes]
             if self.tf_arch != 'baseline':
                 hf_tf, hs_tf = self.transformer(batch, hf, hs)
                 #function
