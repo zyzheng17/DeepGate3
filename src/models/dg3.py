@@ -79,7 +79,8 @@ class DeepGate3(nn.Module):
         # Tokenizer
         self.tokenizer = DeepGate2()
         # Stone: Modify here
-        self.tokenizer.load_pretrained(args.pretrained_model_path)
+        if args.tf_arch != 'baseline':
+            self.tokenizer.load_pretrained(args.pretrained_model_path)
 
         # for param in self.tokenizer.parameters():
         #     param.requires_grad = False
