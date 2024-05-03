@@ -202,7 +202,7 @@ class DeepGate3(nn.Module):
                 state_dict[k] = model_state_dict[k]
         self.load_state_dict(state_dict, strict=False)
         
-    def forward_large(self, g, max_area_batch=64):
+    def forward_large(self, g, max_area_batch=16):
         assert self.args.workload
         all_area_nodes = g.area_nodes
         all_area_nodes_stats = g.area_nodes_stats
@@ -219,11 +219,11 @@ class DeepGate3(nn.Module):
 
 
         for area_idx, area_nodes in enumerate(all_area_nodes):
-            # if area_idx%10==0:
-            #     print(f'encode area{area_idx}')
+            if area_idx%10==0:
+                print(f'build graph {area_idx}')
             area_nodes_stats = all_area_nodes_stats[area_idx]
             area_faninout_cone = all_area_faninout_cone[area_idx]
-            area_g = build_graph(g, area_nodes, area_nodes_stats, area_faninout_cone, prob)
+            area_g = build_graph(g, area_nodes, area_nodes_stats, area_faninout_cone, prob).cpu()
             # area_g = area_g
             if curr_bs == 0:
                 batch_area_g = area_g.clone()
@@ -235,8 +235,9 @@ class DeepGate3(nn.Module):
         if curr_bs != 0:
             batch_area_g_list.append(batch_area_g)
         
-        
+
         for batch_idx, batch in enumerate(batch_area_g_list):
+            print(f'run batch {batch_idx}')
             batch = batch.to(g.x.device)
             # hs, hf = self.tokenizer(batch, batch.prob)
             hs = glo_hs[batch.nodes]
