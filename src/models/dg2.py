@@ -99,7 +99,9 @@ class DeepGate2(dg.Model):
             prob_mask = [0.5] * len(G.gate)
             prob_mask = torch.tensor(prob_mask).unsqueeze(1)
         else:
-            prob_mask = copy.deepcopy(PI_prob)
+            # prob_mask = copy.deepcopy(PI_prob)
+            prob_mask = PI_prob
+            
         prob_mask = prob_mask.unsqueeze(-1).to(device)
         prob_mask[G.gate != 0] = -1
         hf = prob_mask.expand(num_nodes, self.dim_hidden).clone()
