@@ -270,20 +270,20 @@ class LargeNpzParser():
                         graph[key] = torch.tensor(circuits[cir_name][key], dtype=torch.long)
 
                         
-                    # if key == 'tt_pair_index':
-                    #     max_len = max(circuits[cir_name][key].shape[1], 50000)
-                    #     graph[key] = torch.tensor(circuits[cir_name][key][:,:max_len], dtype=torch.long)
-                    #     graph['tt_sim'] = torch.tensor(circuits[cir_name]['tt_sim'][:max_len], dtype=torch.long)
+                    if key == 'tt_pair_index':
+                        max_len = min(circuits[cir_name][key].shape[1], 100000)
+                        graph[key] = torch.tensor(circuits[cir_name][key][:,:max_len], dtype=torch.long)
+                        graph['tt_sim'] = torch.tensor(circuits[cir_name]['tt_sim'][:max_len], dtype=torch.long)
 
-                    # if key == 'connect_pair_index':
-                    #     max_len = max(circuits[cir_name][key].shape[1], 50000)
-                    #     graph[key] = torch.tensor(circuits[cir_name][key][:,:max_len], dtype=torch.long)
-                    #     graph['connect_label'] = torch.tensor(circuits[cir_name]['connect_label'][:max_len], dtype=torch.long)
+                    if key == 'connect_pair_index':
+                        max_len = min(circuits[cir_name][key].shape[1], 100000)
+                        graph[key] = torch.tensor(circuits[cir_name][key][:,:max_len], dtype=torch.long)
+                        graph['connect_label'] = torch.tensor(circuits[cir_name]['connect_label'][:max_len], dtype=torch.long)
 
-                    # if key == 'hop_pair_index':
-                    #     max_len = max(circuits[cir_name][key].shape[1], 50000)
-                    #     graph[key] = torch.tensor(circuits[cir_name][key][:,:max_len], dtype=torch.long)
-                    #     graph['ninh_labels'] = torch.tensor(circuits[cir_name]['ninh_labels'][:max_len], dtype=torch.long)
+                    if key == 'hop_pair_index':
+                        max_len = min(circuits[cir_name][key].shape[1], 100000)
+                        graph[key] = torch.tensor(circuits[cir_name][key][:,:max_len], dtype=torch.long)
+                        graph['ninh_labels'] = torch.tensor(circuits[cir_name]['ninh_labels'][:max_len], dtype=torch.long)
 
                 if not succ:
                     continue

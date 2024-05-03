@@ -82,8 +82,12 @@ class DeepGate3(nn.Module):
         # Tokenizer
         self.tokenizer = DeepGate2()
         # Stone: Modify here
-        if args.tf_arch != 'baseline':
-            self.tokenizer.load_pretrained(args.pretrained_model_path)
+        
+        # if args.tf_arch != 'baseline':
+        #     self.tokenizer.load_pretrained(args.pretrained_model_path)
+
+        #TODO 记得改
+        self.tokenizer.load_pretrained(args.pretrained_model_path)
 
         # for param in self.tokenizer.parameters():
         #     param.requires_grad = False
@@ -218,41 +222,42 @@ class DeepGate3(nn.Module):
         batch_area_g_list = []
         curr_bs = 0
 
-
-        for area_idx, area_nodes in enumerate(all_area_nodes):
-            if area_idx%50==0:
-                print(f'build graph {area_idx}')
-            area_nodes_stats = all_area_nodes_stats[area_idx]
-            area_faninout_cone = all_area_faninout_cone[area_idx]
-            area_g = build_graph(g, area_nodes, area_nodes_stats, area_faninout_cone, prob).cpu()
-            # area_g = area_g
-            if curr_bs == 0:
-                batch_area_g = area_g.clone()
-            else:
-                batch_area_g = merge_area_g(batch_area_g, area_g)
-            curr_bs = (curr_bs + 1) % max_area_batch
-            if curr_bs == 0:
+        if self.tf_arch != 'baseline':
+            for area_idx, area_nodes in enumerate(all_area_nodes):
+                if area_idx%50==0:
+                    print(f'build graph {area_idx}')
+                area_nodes_stats = all_area_nodes_stats[area_idx]
+                area_faninout_cone = all_area_faninout_cone[area_idx]
+                area_g = build_graph(g, area_nodes, area_nodes_stats, area_faninout_cone, prob).cpu()
+                # area_g = area_g
+                if curr_bs == 0:
+                    batch_area_g = area_g.clone()
+                else:
+                    batch_area_g = merge_area_g(batch_area_g, area_g)
+                curr_bs = (curr_bs + 1) % max_area_batch
+                if curr_bs == 0:
+                    batch_area_g_list.append(batch_area_g)
+            if curr_bs != 0:
                 batch_area_g_list.append(batch_area_g)
-        if curr_bs != 0:
-            batch_area_g_list.append(batch_area_g)
-        
+            
 
-        for batch_idx, batch in enumerate(batch_area_g_list):
-            print(f'run batch {batch_idx}')
-            batch = batch.to(g.x.device)
-            hs, hf = self.tokenizer(batch, batch.prob)
-            # hs = glo_hs[batch.nodes]
-            # hf = glo_hf[batch.nodes]
-            if self.tf_arch != 'baseline':
+            for batch_idx, batch in enumerate(batch_area_g_list):
+                print(f'run batch {batch_idx}')
+                batch = batch.to(g.x.device)
+                hs, hf = self.tokenizer(batch, batch.prob)
+                # hs = glo_hs[batch.nodes]
+                # hf = glo_hf[batch.nodes]
+                
                 hf_tf, hs_tf = self.transformer(batch, hf, hs)
                 #function
                 hf = hf + hf_tf
                 #structure
                 hs = hs + hs_tf
-            # prob = self.readout_prob(hf).squeeze(-1)
-            glo_hs[batch.nodes] = hs
-            glo_hf[batch.nodes] = hf
-            
+                # prob = self.readout_prob(hf).squeeze(-1)
+                glo_hs[batch.nodes] = hs
+                glo_hf[batch.nodes] = hf
+        else: 
+            glo_hs, glo_hf = self.tokenizer(g, g.prob)
         return glo_hs, glo_hf
         
     def forward(self, g, skip_path=False, skip_hop=False, large_ckt=False):
@@ -384,14 +389,15 @@ class DeepGate3(nn.Module):
             #graph-level pretrain task : predict truth table & pair-wise TT sim
             hop_hf = []
             hf_masks = []
+            
+            pi_emb = hf[g.hop_pi]
+            pi_emb[g.hop_pi_stats==1] = self.one_token
+            pi_emb[g.hop_pi_stats==0] = self.zero_token
+            pi_emb[g.hop_pi_stats==-1] = self.dc_token 
+            pi_emb[g.hop_pi_stats==-2] = self.pad_token.to(hf.device)
+            po_emb = hf[g.hop_po]
+            hop_hf = torch.cat([self.cls_token_hf.unsqueeze(0).unsqueeze(0).repeat(pi_emb.shape[0],1,1),pi_emb,po_emb], dim=1)
             if self.tf_arch!='baseline':
-                pi_emb = hf[g.hop_pi]
-                pi_emb[g.hop_pi_stats==1] = self.one_token
-                pi_emb[g.hop_pi_stats==0] = self.zero_token
-                pi_emb[g.hop_pi_stats==-1] = self.dc_token 
-                pi_emb[g.hop_pi_stats==-2] = self.pad_token.to(hf.device)
-                po_emb = hf[g.hop_po]
-                hop_hf = torch.cat([self.cls_token_hf.unsqueeze(0).unsqueeze(0).repeat(pi_emb.shape[0],1,1),pi_emb,po_emb], dim=1)
                 hf_masks = torch.where(g.hop_pi_stats==-1,1,0)
                 hf_masks = torch.cat([torch.zeros(g.hop_pi_stats.shape[0],1).to(hf.device),g.hop_pi_stats,torch.zeros(g.hop_pi_stats.shape[0],1).to(hf.device)],dim=1)
                 
@@ -404,7 +410,7 @@ class DeepGate3(nn.Module):
                 hop_hf = self.hop_func_tf(hop_hf,src_key_padding_mask = hf_masks)
                 hop_hf = hop_hf[:,0]
             else :
-                hop_hf = torch.mean(torch.cat([pi_emb,po_emb],dim=1),dim=1)
+                hop_hf = torch.mean(hop_hf,dim=1)
 
             #pair-wise TT sim prediction
             hop_tt_sim = self.proj_hop_ttsim(torch.cat([hop_hf[g.hop_forward_index[g.hop_pair_index[0]]],hop_hf[g.hop_forward_index[g.hop_pair_index[1]]]],dim=-1))
