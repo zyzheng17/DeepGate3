@@ -64,7 +64,7 @@ def merge_area_g(batch_g, g):
     
     return batch_g
   
-def get_areas(g, max_area_batch = 8):
+def get_areas(g, max_area_batch = 16):
     batch_area_g_list = []
     curr_bs = 0
     all_area_nodes = g.area_nodes
@@ -362,7 +362,7 @@ class LargeNpzParser():
                 
                 area_list = get_areas(graph)
                 graph.area_list = area_list
-                # print(len(area_list))
+                print(len(area_list))
                 
                 data_list.append(graph)
                 tot_time = time.time() - start_time
