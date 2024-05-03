@@ -208,9 +208,9 @@ class DeepGate3(nn.Module):
         for batch_idx, batch in enumerate(g.area_list[0]):
             print(f'run batch {batch_idx}')
             batch = batch.to(g.x.device)
-            # hs, hf = self.tokenizer(batch, batch.prob)
-            hs = glo_hs[batch.nodes]
-            hf = glo_hf[batch.nodes]
+            hs, hf = self.tokenizer(batch, batch.prob)
+            # hs = glo_hs[batch.nodes]
+            # hf = glo_hf[batch.nodes]
             if self.tf_arch != 'baseline':
                 hf_tf, hs_tf = self.transformer(batch, hf, hs)
                 #function
