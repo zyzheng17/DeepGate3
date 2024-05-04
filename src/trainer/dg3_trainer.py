@@ -267,8 +267,8 @@ class Trainer():
             return False
 
     def run_batch(self, batch, phase='train'):
-        
-        result_dict = self.model(batch, self.skip_path, self.skip_hop, self.args.enable_cut)
+
+        result_dict = self.model(batch, self.skip_path, self.skip_hop, large_ckt=self.args.enable_cut)
 
 
         
@@ -457,6 +457,7 @@ class Trainer():
             #TODO：记得改
             # if torch.max(batch.area_idx)>400:
             #     continue
+
             batch = batch.to(self.device)        
             
             loss_dict, metric_dict = self.run_batch(batch,phase=phase)
@@ -480,6 +481,7 @@ class Trainer():
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
+                torch.cuda.empty_cache()
             
             if self.local_rank == 0:
                 # Bar.suffix = '[{:}/{:}] |Tot: {total:} |ETA: {eta:} '.format(iter_id, len(dataset), total=bar.elapsed_td, eta=bar.eta_td)
@@ -536,6 +538,7 @@ class Trainer():
                     if metric_dict[metric_key] !=0:
                         output_log += ' | {}: {:.4f}'.format(metric_key, metric_dict[metric_key])
                 if iter_id % 5 ==0:
+                # if iter_id % 1 ==0:
                     print(output_log)
                     print('\n')
 
@@ -603,6 +606,7 @@ class Trainer():
         
         
         print('[INFO] Start training, lr = {:.4f}'.format(self.optimizer.param_groups[0]['lr']))
+        
         for epoch in range(num_epoch):
 
             for phase in ['train', 'val']:

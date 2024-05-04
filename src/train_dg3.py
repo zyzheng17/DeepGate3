@@ -10,7 +10,7 @@ import numpy as np
 import sys
 from config import get_parse_args
 
-from models.dg2 import DeepGate2
+# from models.dg2 import DeepGate2
 from models.dg3 import DeepGate3
 from dg_datasets.dataset_utils import npzitem_to_graph
 from dg_datasets.dg3_parser import NpzParser
@@ -56,12 +56,17 @@ if __name__ == '__main__':
     args = get_parse_args()
     if not os.path.exists(args.data_dir):
         os.makedirs(args.data_dir)
-        
+    
+    # Stone: Support multiple npz files
+    parser = MultiNpzParser(args.data_dir, args.npz_dir, args.test_npz_path, args, random_shuffle=True)
+    # parser = LargeNpzParser(args.data_dir, args.npz_dir, args.test_npz_path, args, random_shuffle=False)
+    train_dataset, val_dataset = parser.get_dataset()
+
+
     # Create Model 
     model = DeepGate3(args)
-    #TODO:记得改
-    # model.load('/home/zyzheng23/project/exp/train_100p_nonfix/model_last.pth')
-    # model = DeepGate3_structure(args)
+    if args.dg3_path!=None:
+        model.load(args.dg3_path)
     # Train 
     get_param(model)
 
@@ -72,11 +77,6 @@ if __name__ == '__main__':
     # train_dataset, val_dataset = parser.get_dataset()
     # parser = NpzParser(args.data_dir, args.npz_dir, args, random_shuffle=False)
 
-    # Stone: Support multiple npz files
-    # parser = MultiNpzParser(args.data_dir, args.npz_dir, args.test_npz_path, args, random_shuffle=True)
-    parser = LargeNpzParser(args.data_dir, args.npz_dir, args.test_npz_path, args, random_shuffle=True)
-    train_dataset, val_dataset = parser.get_dataset()
-
     trainer = Trainer(
         args=args, 
         model=model, 
@@ -84,12 +84,32 @@ if __name__ == '__main__':
         loss=args.loss, 
         num_workers=1
     )
+
     # # Stone: ICCAD version, no path loss
+    loss_keys = [
+            "gate_prob", "gate_lv", "gate_con", "gate_ttsim", 
+            "path_onpath", "path_len", "path_and", 
+            "hop_tt", "hop_ttsim", "hop_GED", "hop_num", "hop_lv", "hop_onhop"
+        ]
+    
+    # trainer.set_training_args(loss_weight={
+    #     'gate_prob': 0, 
+    #     'gate_lv': 0, 
+    #     'gate_con': 0,
+    # })
     trainer.set_training_args(loss_weight={
         'path_onpath': 0, 
         'path_len': 0, 
         'path_and': 0,
     })
+    # trainer.set_training_args(loss_weight={
+    #     'hop_tt': 0, 
+    #     'hop_ttsim': 0, 
+    #     'hop_GED': 0,
+    #     'hop_num': 0,
+    #     'hop_lv': 0,
+    #     'hop_onhop': 0,
+    # })
     trainer.train(args.epoch, train_dataset, val_dataset)
     
     

@@ -211,7 +211,9 @@ class MultiNpzParser():
                 #     tot_time, tot_time * (len(circuits) - cir_idx), 
                 #     len(data_list)
                 # ))
-                
+                # if len(circuits['area_list'][0])>=12:
+                #     print(f'skip {circuits['name']}:{circuits['batch'].shape[0]}')
+                #     continue
                 graph = OrderedData()
                 succ = True
                 for key in circuits[cir_name].keys():
@@ -326,7 +328,7 @@ class LargeNpzParser():
                 # if 'area_nodes' not in circuits[cir_name].keys():
                 #     print(cir_name)
                 #     continue
-
+                
                 for key in circuits[cir_name].keys():
                     if key == 'connect_pair_index' and len(circuits[cir_name][key]) == 0:
                         succ = False
@@ -341,20 +343,20 @@ class LargeNpzParser():
                         graph[key] = torch.tensor(circuits[cir_name][key], dtype=torch.long)
 
                         
-                    if key == 'tt_pair_index':
-                        max_len = min(circuits[cir_name][key].shape[1], 100000)
-                        graph[key] = torch.tensor(circuits[cir_name][key][:,:max_len], dtype=torch.long)
-                        graph['tt_sim'] = torch.tensor(circuits[cir_name]['tt_sim'][:max_len], dtype=torch.long)
+                    # if key == 'tt_pair_index':
+                    #     max_len = min(circuits[cir_name][key].shape[1], 100000)
+                    #     graph[key] = torch.tensor(circuits[cir_name][key][:,:max_len], dtype=torch.long)
+                    #     graph['tt_sim'] = torch.tensor(circuits[cir_name]['tt_sim'][:max_len], dtype=torch.float)
 
-                    if key == 'connect_pair_index':
-                        max_len = min(circuits[cir_name][key].shape[1], 100000)
-                        graph[key] = torch.tensor(circuits[cir_name][key][:,:max_len], dtype=torch.long)
-                        graph['connect_label'] = torch.tensor(circuits[cir_name]['connect_label'][:max_len], dtype=torch.long)
+                    # if key == 'connect_pair_index':
+                    #     max_len = min(circuits[cir_name][key].shape[1], 100000)
+                    #     graph[key] = torch.tensor(circuits[cir_name][key][:,:max_len], dtype=torch.long)
+                    #     graph['connect_label'] = torch.tensor(circuits[cir_name]['connect_label'][:max_len], dtype=torch.long)
 
-                    if key == 'hop_pair_index':
-                        max_len = min(circuits[cir_name][key].shape[1], 100000)
-                        graph[key] = torch.tensor(circuits[cir_name][key][:,:max_len], dtype=torch.long)
-                        graph['ninh_labels'] = torch.tensor(circuits[cir_name]['ninh_labels'][:max_len], dtype=torch.long)
+                    # if key == 'hop_pair_index':
+                    #     max_len = min(circuits[cir_name][key].shape[1], 100000)
+                    #     graph[key] = torch.tensor(circuits[cir_name][key][:,:max_len], dtype=torch.long)
+                    #     graph['ninh_labels'] = torch.tensor(circuits[cir_name]['ninh_labels'][:max_len], dtype=torch.long)
 
                 if not succ:
                     continue
@@ -363,6 +365,9 @@ class LargeNpzParser():
                 area_list = get_areas(graph)
                 graph.area_list = area_list
                 print(len(area_list))
+                if len(area_list)>12:
+                    print(f'skip {graph.name}')
+                    continue
                 
                 data_list.append(graph)
                 tot_time = time.time() - start_time

@@ -44,8 +44,10 @@ class Plain_Transformer(nn.Sequential):
 
     # def forward(self, g, subgraph):
     def forward(self, g, hf, hs):
-        hf = hf.detach()
-        hs = hs.detach()
+        hf = hf.clone()
+        hs = hs.clone()
+        # hf = hf.detach()
+        # hs = hs.detach()
         bs = g.batch.max().item() + 1
         corr_m = g.fanin_fanout_cones.reshape(bs, self.max_length, self.max_length)
         
@@ -62,7 +64,7 @@ class Plain_Transformer(nn.Sequential):
             mask_hop_states[i] = torch.cat([hf[g.batch==i] + hs[g.batch==i], \
                                             torch.zeros([self.max_length - hf[g.batch==i].shape[0],hf[g.batch==i].shape[1]]).to(hf.device)],dim=0)
             padding_mask[i][:hf[g.batch==i].shape[0]] = 0
-            pos[i][:hf[g.batch==i].shape[0]] = g.forward_level[g.batch==i].long()
+            # pos[i][:hf[g.batch==i].shape[0]] = g.forward_level[g.batch==i].long()
 
         padding_mask = torch.where(padding_mask==1, True, False)# Flase = compute attention, True = mask # inverse to fit nn.transformer
         

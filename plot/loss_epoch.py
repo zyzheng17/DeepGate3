@@ -33,7 +33,7 @@ for frac in data_frac:
 
 
 for frac in data_frac:
-    path = f'/home/zyzheng23/project/DeepGate3-Transformer/exp/0430_plain_workload_10p_unfreeze_500epoch.log'
+    path = f'/home/zyzheng23/project/DeepGate3-Transformer/exp/0503_train_large.log'
     with open(path,'r') as f:
         lines = f.readlines()
         for i,line in enumerate(lines):

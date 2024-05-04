@@ -10,7 +10,7 @@ from .hop_tf import Hop_Transformer
 from .path_tf import Path_Transformer
 from .baseline_tf import Baseline_Transformer
 from .mlp import MLP
-from .tf_pool import tf_Pooling
+# from .tf_pool import tf_Pooling
 from dg_datasets.dg3_multi_parser import OrderedData
 import numpy as np
 _transformer_factory = {
@@ -83,11 +83,12 @@ class DeepGate3(nn.Module):
         self.tokenizer = DeepGate2()
         # Stone: Modify here
         
-        # if args.tf_arch != 'baseline':
-        #     self.tokenizer.load_pretrained(args.pretrained_model_path)
+        if args.tf_arch != 'baseline':
+            self.tokenizer.load_pretrained(args.pretrained_model_path)
 
         #TODO 记得改
-        self.tokenizer.load_pretrained(args.pretrained_model_path)
+        # self.tokenizer.load_pretrained(args.pretrained_model_path)
+        
 
         # for param in self.tokenizer.parameters():
         #     param.requires_grad = False
@@ -209,13 +210,14 @@ class DeepGate3(nn.Module):
     def forward_large(self, g):
         glo_hs, glo_hf = self.tokenizer(g, g.prob)
 
-        for batch_idx, batch in enumerate(g.area_list[0]):
-            print(f'run batch {batch_idx}')
-            batch = batch.to(g.x.device)
-            hs, hf = self.tokenizer(batch, batch.prob)
-            # hs = glo_hs[batch.nodes]
-            # hf = glo_hf[batch.nodes]
-            if self.tf_arch != 'baseline':
+        if self.tf_arch != 'baseline':
+            for batch_idx, batch in enumerate(g.area_list[0]):
+                # print(f'run batch {batch_idx}')
+                batch = batch.to(g.x.device)
+                # hs, hf = self.tokenizer(batch, batch.prob)
+                hs = glo_hs[batch.nodes]
+                hf = glo_hf[batch.nodes]
+                
                 hf_tf, hs_tf = self.transformer(batch, hf, hs)
                 #function
                 hf = hf + hf_tf
@@ -224,57 +226,33 @@ class DeepGate3(nn.Module):
                 # prob = self.readout_prob(hf).squeeze(-1)
                 glo_hs[batch.nodes] = hs
                 glo_hf[batch.nodes] = hf
-        else: 
-            glo_hs, glo_hf = self.tokenizer(g, g.prob)
+               
+                # torch.cuda.empty_cache()
+
         return glo_hs, glo_hf
     
     # def forward_large(self, g, max_area_batch=16):
     #     assert self.args.workload
-    #     all_area_nodes = g.area_nodes
-    #     all_area_nodes_stats = g.area_nodes_stats
-    #     all_area_lev = g.area_lev
-    #     all_area_faninout_cone = g.area_fanin_fanout_cone
+
     #     prob = g.prob.clone()
-    #     # glo_hs = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
-    #     # glo_hf = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
-
-    #     glo_hs, glo_hf = self.tokenizer(g, g.prob)
-        
-    #     batch_area_g_list = []
-    #     curr_bs = 0
+    #     glo_hs = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
+    #     glo_hf = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
 
 
-    #     for area_idx, area_nodes in enumerate(all_area_nodes):
-    #         if area_idx%10==0:
-    #             print(f'build graph {area_idx}')
-    #         area_nodes_stats = all_area_nodes_stats[area_idx]
-    #         area_faninout_cone = all_area_faninout_cone[area_idx]
-    #         area_g = build_graph(g, area_nodes, area_nodes_stats, area_faninout_cone, prob).cpu()
-    #         # area_g = area_g
-    #         if curr_bs == 0:
-    #             batch_area_g = area_g.clone()
-    #         else:
-    #             batch_area_g = merge_area_g(batch_area_g, area_g)
-    #         curr_bs = (curr_bs + 1) % max_area_batch
-    #         if curr_bs == 0:
-    #             batch_area_g_list.append(batch_area_g)
-    #     if curr_bs != 0:
-    #         batch_area_g_list.append(batch_area_g)
-        
-
-    #     for batch_idx, batch in enumerate(batch_area_g_list):
-    #         print(f'run batch {batch_idx}')
-    #         batch = batch.to(g.x.device)
-    #         # hs, hf = self.tokenizer(batch, batch.prob)
-    #         hs = glo_hs[batch.nodes]
-    #         hf = glo_hf[batch.nodes]
+    #     for batch_idx, batch in enumerate(g.area_list[0]):
+    #         # print(f'run batch {batch_idx}')
+    #         # batch = batch.to(g.x.device)
+    #         # hs, hf = self.tokenizer(batch, prob[batch.nodes])
+    #         hs, hf = self.tokenizer(batch, batch.prob)
+    #         # hs = glo_hs[batch.nodes]
+    #         # hf = glo_hf[batch.nodes]
     #         if self.tf_arch != 'baseline':
     #             hf_tf, hs_tf = self.transformer(batch, hf, hs)
     #             #function
     #             hf = hf + hf_tf
     #             #structure
     #             hs = hs + hs_tf
-    #         # prob = self.readout_prob(hf).squeeze(-1)
+    #         prob = self.readout_prob(hf).squeeze(-1)
     #         glo_hs[batch.nodes] = hs
     #         glo_hf[batch.nodes] = hf
             
@@ -282,7 +260,32 @@ class DeepGate3(nn.Module):
         
     def forward(self, g, skip_path=False, skip_hop=False, large_ckt=False):
         if large_ckt:
-            hs, hf = self.forward_large(g)
+
+            # hs, hf = self.forward_large(g)
+            glo_hs, glo_hf = self.tokenizer(g, g.prob)
+
+            if self.tf_arch != 'baseline':
+                for batch_idx, batch in enumerate(g.area_list[0]):
+                    # print(f'run batch {batch_idx}')
+                    batch = batch.to(g.x.device)
+                    # hs, hf = self.tokenizer(batch, batch.prob)
+                    hs = glo_hs[batch.nodes]
+                    hf = glo_hf[batch.nodes]
+                    
+                    hf_tf, hs_tf = self.transformer(batch, hf, hs)
+                    #function
+                    hf = hf + hf_tf
+                    #structure
+                    hs = hs + hs_tf
+                    # prob = self.readout_prob(hf).squeeze(-1)
+                    glo_hs[batch.nodes] = hs
+                    glo_hf[batch.nodes] = hf
+                    hop_node_set = list(set(batch.nodes.cpu().numpy()))
+                    for emb_idx in hop_node_set:
+                        glo_hf[emb_idx] = torch.mean(hf[batch.nodes==emb_idx],dim=0)
+                        glo_hs[emb_idx] = torch.mean(hs[batch.nodes==emb_idx],dim=0)
+            hf = glo_hf
+            hs = glo_hs
         else:
             # t = time.time()
             if self.args.workload:
@@ -460,8 +463,8 @@ class DeepGate3(nn.Module):
 
                 hop_hs = self.hop_struc_tf(hop_hs,src_key_padding_mask = hs_masks)
                 hop_hs = hop_hs[:,0]
-
-            hop_hs = torch.mean(hs[g.hop_nodes],dim=1)
+            else:
+                hop_hs = torch.mean(hs[g.hop_nodes],dim=1)
             #pari-wise GED prediction 
             pred_GED = self.proj_GED(torch.cat([hop_hs[g.hop_pair_index[0]],hop_hs[g.hop_pair_index[1]]],dim=-1))
             pred_GED = nn.Sigmoid()(pred_GED)
