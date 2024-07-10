@@ -481,7 +481,7 @@ class Trainer():
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-                torch.cuda.empty_cache()
+                # torch.cuda.empty_cache()
             
             if self.local_rank == 0:
                 # Bar.suffix = '[{:}/{:}] |Tot: {total:} |ETA: {eta:} '.format(iter_id, len(dataset), total=bar.elapsed_td, eta=bar.eta_td)
@@ -663,5 +663,3 @@ class Trainer():
             self.run_dataset(0, val_dataset, 'large_val')
 
         
-
-

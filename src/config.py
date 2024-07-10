@@ -13,10 +13,10 @@ def get_parse_args():
     parser.add_argument('--enable_cut', action='store_true', default=False)
     
     # Dataset
-    parser.add_argument('--data_dir', default='/uac/gds/zyzheng23/projects/DeepGate3-Transformer/data/dg3_80k')
+    parser.add_argument('--data_dir', default='/uac/gds/zyzheng23/projects/DeepGate3-ICCAD/data/dg3_80k')
     parser.add_argument('--dg3_path', default=None)
     parser.add_argument('--npz_dir', default='/home/zyshi21/data/share/dg3_dataset/100p')
-    parser.add_argument('--circuit_path', default='/uac/gds/zyzheng23/projects/DeepGate3-Transformer/data/dg3_80k/wl_4_hop.npz')
+    parser.add_argument('--circuit_path', default='/uac/gds/zyzheng23/projects/DeepGate3-ICCAD/data/dg3_80k/wl_4_hop.npz')
     parser.add_argument('--test_npz_path', default='/home/zyshi21/data/share/dg3_dataset/test/00.npz')
     parser.add_argument('--default_dataset', action='store_true')
     parser.add_argument('--hop_ratio', default=0.15, type=float)
@@ -25,7 +25,7 @@ def get_parse_args():
     parser.add_argument('--load_npz', default='', type=str)
     
     # Model 
-    parser.add_argument('--pretrained_model_path', default='./DeepGate3-Transformer/trained/model_last.pth')
+    parser.add_argument('--pretrained_model_path', default='./DeepGate3-ICCAD/trained/model_last.pth')
     parser.add_argument('--dropout', default=0.1, type=float)
     parser.add_argument('--workload', action='store_true', default=False)
     
@@ -86,6 +86,6 @@ def get_parse_args():
 
     # Training 
     args.skip_path = True
-    args.skip_hop = True
+    args.skip_hop = False
     
     return args

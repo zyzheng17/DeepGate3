@@ -23,6 +23,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset,DataLoader
 import random
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+os.environ['TMPDIR'] = '/home/zyzheng23/project/tmp'
 #fix global seed
 def setup_seed(seed):
     torch.manual_seed(seed)
@@ -64,11 +65,30 @@ if __name__ == '__main__':
 
 
     # Create Model 
+    print(args.tf_arch)
     model = DeepGate3(args)
     if args.dg3_path!=None:
         model.load(args.dg3_path)
     # Train 
     get_param(model)
+    high_level_params = {}
+
+
+    for name, param in model.named_parameters():
+
+        high_level_name = name.split('.')[0]
+
+        if high_level_name in high_level_params:
+            high_level_params[high_level_name] += param.numel()
+        else:
+            high_level_params[high_level_name] = param.numel()
+
+
+    for layer, params in high_level_params.items():
+        num_params = params / 1_000_000 
+        print(f"High-level Layer: {layer} | Total parameters: {num_params:.6f}M")
+
+    # exit()
 
     # Dataset
     # parser = NpzParser(args.data_dir, args.circuit_path, debug=args.debug, random_shuffle=False)

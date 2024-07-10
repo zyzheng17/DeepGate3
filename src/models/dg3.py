@@ -9,6 +9,7 @@ from .plain_tf import Plain_Transformer
 from .hop_tf import Hop_Transformer
 from .path_tf import Path_Transformer
 from .baseline_tf import Baseline_Transformer
+from .dg_mamba import DeepGate_mamba
 from .mlp import MLP
 # from .tf_pool import tf_Pooling
 from dg_datasets.dg3_multi_parser import OrderedData
@@ -17,7 +18,6 @@ _transformer_factory = {
     'baseline': None,
     'plain': Plain_Transformer,
     'hop': Hop_Transformer, 
-    'path': Path_Transformer
 }
 
 import torch.nn as nn
@@ -70,7 +70,6 @@ def merge_area_g(batch_g, g):
     
     return batch_g
     
-
 class DeepGate3(nn.Module):
     def __init__(self, args):
         super().__init__()
@@ -86,13 +85,6 @@ class DeepGate3(nn.Module):
         if args.tf_arch != 'baseline':
             self.tokenizer.load_pretrained(args.pretrained_model_path)
 
-        #TODO 记得改
-        # self.tokenizer.load_pretrained(args.pretrained_model_path)
-        
-
-        # for param in self.tokenizer.parameters():
-        #     param.requires_grad = False
-
         #special token
         self.cls_token_hf = nn.Parameter(torch.randn([self.hidden,]))
         self.cls_token_hs = nn.Parameter(torch.randn([self.hidden,]))
@@ -105,36 +97,22 @@ class DeepGate3(nn.Module):
         self.hf_PositionalEmbedding = nn.Embedding(33,self.hidden)
         self.hs_PositionalEmbedding = nn.Embedding(33,self.hidden)
         self.Path_Pos = nn.Embedding(self.max_path_len,self.hidden)
-
-
         
         # Transformer 
-        if args.tf_arch != 'baseline':
-            self.transformer = _transformer_factory[args.tf_arch](args,hidden=self.hidden)
-        
-
+        if args.tf_arch != 'baseline' :
+            self.transformer = _transformer_factory[args.tf_arch](args, hidden=self.hidden)
+    
         #pooling layer
         pool_layer = nn.TransformerEncoderLayer(d_model=self.hidden, nhead=4, batch_first=True)
         self.hop_func_tf = nn.TransformerEncoder(pool_layer, num_layers=3)
         self.hop_struc_tf = nn.TransformerEncoder(pool_layer, num_layers=3)
-        self.path_struc_tf = nn.TransformerEncoder(pool_layer, num_layers=3)
         
-        
-
         # Prediction 
-        self.hop_head = nn.Sequential(nn.Linear(self.hidden, self.hidden*4),
-                        nn.ReLU(),
-                        nn.LayerNorm(self.hidden*4),
-                        nn.Linear(self.hidden*4, self.max_tt_len))
+        self.hop_head = MLP(
+            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=self.max_tt_len, 
+            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
+        )
         self.readout_prob = MLP(
-            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
-            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        )
-        self.readout_path_len = MLP(
-            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
-            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        )
-        self.readout_path_and_ratio = MLP(
             dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
             num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
         )
@@ -160,10 +138,6 @@ class DeepGate3(nn.Module):
         )
         self.on_hop_head = MLP(
             dim_in=self.args.token_emb*2, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
-            num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
-        )
-        self.readout_path_len = MLP(
-            dim_in=self.args.token_emb, dim_hidden=self.args.mlp_hidden, dim_pred=1, 
             num_layer=self.args.mlp_layer, norm_layer=self.args.norm_layer, act_layer='relu'
         )
 
@@ -231,37 +205,11 @@ class DeepGate3(nn.Module):
 
         return glo_hs, glo_hf
     
-    # def forward_large(self, g, max_area_batch=16):
-    #     assert self.args.workload
-
-    #     prob = g.prob.clone()
-    #     glo_hs = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
-    #     glo_hf = torch.zeros([len(g.gate), self.hidden]).to(g.x.device)
-
-
-    #     for batch_idx, batch in enumerate(g.area_list[0]):
-    #         # print(f'run batch {batch_idx}')
-    #         # batch = batch.to(g.x.device)
-    #         # hs, hf = self.tokenizer(batch, prob[batch.nodes])
-    #         hs, hf = self.tokenizer(batch, batch.prob)
-    #         # hs = glo_hs[batch.nodes]
-    #         # hf = glo_hf[batch.nodes]
-    #         if self.tf_arch != 'baseline':
-    #             hf_tf, hs_tf = self.transformer(batch, hf, hs)
-    #             #function
-    #             hf = hf + hf_tf
-    #             #structure
-    #             hs = hs + hs_tf
-    #         prob = self.readout_prob(hf).squeeze(-1)
-    #         glo_hs[batch.nodes] = hs
-    #         glo_hf[batch.nodes] = hf
-            
-    #     return glo_hs, glo_hf
         
     def forward(self, g, skip_path=False, skip_hop=False, large_ckt=False):
         if large_ckt:
-
             # hs, hf = self.forward_large(g)
+
             glo_hs, glo_hf = self.tokenizer(g, g.prob)
 
             if self.tf_arch != 'baseline':
@@ -278,8 +226,8 @@ class DeepGate3(nn.Module):
                     #structure
                     hs = hs + hs_tf
                     # prob = self.readout_prob(hf).squeeze(-1)
-                    glo_hs[batch.nodes] = hs
-                    glo_hf[batch.nodes] = hf
+                    # glo_hs[batch.nodes] = hs
+                    # glo_hf[batch.nodes] = hf
                     hop_node_set = list(set(batch.nodes.cpu().numpy()))
                     for emb_idx in hop_node_set:
                         glo_hf[emb_idx] = torch.mean(hf[batch.nodes==emb_idx],dim=0)
@@ -287,17 +235,12 @@ class DeepGate3(nn.Module):
             hf = glo_hf
             hs = glo_hs
         else:
-            # t = time.time()
             if self.args.workload:
                 hs, hf = self.tokenizer(g, g.prob)
             else:
                 hs, hf = self.tokenizer(g)
 
-            # hf = hf.detach()
-            # hs = hs.detach()
-
             # Refine-Transformer 
-
             if self.tf_arch != 'baseline':
                 hf_tf, hs_tf = self.transformer(g, hf, hs)
                 #function
@@ -305,18 +248,11 @@ class DeepGate3(nn.Module):
                 #structure
                 hs = hs + hs_tf
 
-            # print('dg3 refine transformer time:{:.2f}'.format(time.time()-t))
-            # t = time.time()
-
         #=========================================================
         #======================GATE-level=========================
         #=========================================================
 
         #gate-level pretrain task : predict pari-wise TT sim
-        # max_len = min(g.tt_pair_index.shape[1],100000)
-        # gate_tt_sim = self.proj_gate_ttsim(torch.cat([hf[g.tt_pair_index[0,:max_len]],hf[g.tt_pair_index[1,:max_len]]],dim=-1))
-        # if g.tt_pair_index.shape[1] <= 1:
-        #     print(g)
         gate_tt_sim = self.proj_gate_ttsim(torch.cat([hf[g.tt_pair_index[0]],hf[g.tt_pair_index[1]]],dim=-1))
         gate_tt_sim = nn.Sigmoid()(gate_tt_sim)
 
@@ -327,77 +263,11 @@ class DeepGate3(nn.Module):
         pred_level = self.readout_level(hs)
 
         #gate-level pretrain task : predict connection
-        # max_len = min(g.connect_pair_index.shape[1],100000)
         gates = hs[g.connect_pair_index]
         gates = gates.permute(1,2,0).reshape(-1,self.hidden*2)
         pred_connect = self.connect_head(gates)
 
-        # print('dg3 gate-level time:{:.2f}'.format(time.time()-t))
-        # t = time.time()
 
-        #=========================================================
-        #======================PATH-level=========================
-        #=========================================================
-        if skip_path: 
-            on_path_logits = 0
-            pred_path_len = 0
-            pred_path_and_ratio = 0
-            # on_path_logits = torch.zeros(len(g.ninp_labels)).to(hs.device)
-            # pred_path_len = torch.zeros(len(g.paths_len)).to(hs.device)
-            # pred_path_and_ratio = torch.zeros(len(g.paths_and_ratio)).to(hs.device)
-        else:
-            # Stone: reduce maximum path length
-            max_path_len = g.paths_len.max().item()     # previous: 256
-            assert max_path_len < 128, "path length is too large"
-            g.paths = g.paths[:,:max_path_len]
-            
-            if self.args.fast:
-                tot_paths_cnt = len(g.paths)
-                g_shuffle_index = np.arange(tot_paths_cnt)
-                np.random.shuffle(g_shuffle_index)
-                g_shuffle_index = g_shuffle_index[:int(tot_paths_cnt*0.1)]
-                
-                g.paths = g.paths[g_shuffle_index]
-                g.path_forward_index = g.path_forward_index[:len(g_shuffle_index)]
-                g.paths_len = g.paths_len[g_shuffle_index]
-                g.paths_and_ratio = g.paths_and_ratio[g_shuffle_index]
-                g.paths_no_and = g.paths_no_and[g_shuffle_index]
-                g.paths_no_not = g.paths_no_not[g_shuffle_index]
-                
-                ninp_node_index = []
-                ninp_path_index = []
-                ninp_labels = []
-                new_index_map = {}
-                for k, idx in enumerate(g_shuffle_index):
-                    new_index_map[idx] = k
-                for k in range(len(g.ninp_node_index)):
-                    if g.ninp_path_index[k].item() in g_shuffle_index:
-                        ninp_node_index.append(g.ninp_node_index[k].item())
-                        ninp_path_index.append(new_index_map[g.ninp_path_index[k].item()])
-                        ninp_labels.append(g.ninp_labels[k].item())
-                g.ninp_node_index = torch.tensor(ninp_node_index).to(g.paths.device)
-                g.ninp_path_index = torch.tensor(ninp_path_index).to(g.paths.device)
-                g.ninp_labels = torch.tensor(ninp_labels).to(g.paths.device)
-                
-            #path-level pretrain task : on-path prediction, path num prediction
-            path_hs =  torch.cat([self.cls_path_token.reshape([1,1,-1]).repeat(g.paths.shape[0],1,1),hs[g.paths]],dim=1)
-            # False = compute attention, True = mask 
-            path_mask = torch.stack([torch.cat([torch.zeros([g.paths_len[i]+1]),torch.ones([max_path_len-g.paths_len[i]])],dim=0) for i in range(g.paths.shape[0])]) 
-            path_mask = torch.where(path_mask==1, True, False).to(path_hs.device)
-            pos = torch.arange(path_hs.shape[1]).unsqueeze(0).repeat(path_hs.shape[0],1).to(hs.device)
-            path_hs = path_hs + self.Path_Pos(pos)
-            path_hs = self.path_struc_tf(path_hs, src_key_padding_mask = path_mask)[:, 0]
-
-            #on-path prediction
-            on_path_emb = torch.cat([hs[g.ninp_node_index],path_hs[g.ninp_path_index]],dim=1)
-            on_path_logits = self.on_path_head(on_path_emb)
-
-            #path num prediction
-            pred_path_len = self.readout_path_len(path_hs)
-            pred_path_and_ratio = self.readout_path_and_ratio(path_hs)  # Predict the ratio of AND gates in the path
-
-        # print('dg3 path-level time:{:.2f}'.format(time.time()-t))
-        # t = time.time()
         #=========================================================
         #======================GRAPH-level========================
         #=========================================================
@@ -420,7 +290,15 @@ class DeepGate3(nn.Module):
             pi_emb[g.hop_pi_stats==-2] = self.pad_token.to(hf.device)
             po_emb = hf[g.hop_po]
             hop_hf = torch.cat([self.cls_token_hf.unsqueeze(0).unsqueeze(0).repeat(pi_emb.shape[0],1,1),pi_emb,po_emb], dim=1)
-            if self.tf_arch!='baseline':
+            if self.tf_arch=='baseline' or self.tf_arch=='mamba':
+                pi_emb = hf[g.hop_pi]
+                pi_emb[g.hop_pi_stats==1] = self.one_token
+                pi_emb[g.hop_pi_stats==0] = self.zero_token
+                pi_emb[g.hop_pi_stats==-1] = self.dc_token 
+                pi_emb[g.hop_pi_stats==-2] = self.pad_token.to(hf.device)
+                po_emb = hf[g.hop_po]
+                hop_hf = torch.mean(torch.cat([pi_emb,po_emb],dim=1),dim=1)
+            else:
                 hf_masks = torch.where(g.hop_pi_stats==-1,1,0)
                 hf_masks = torch.cat([torch.zeros(g.hop_pi_stats.shape[0],1).to(hf.device),g.hop_pi_stats,torch.zeros(g.hop_pi_stats.shape[0],1).to(hf.device)],dim=1)
                 
@@ -432,14 +310,7 @@ class DeepGate3(nn.Module):
                 hf_masks = torch.where(hf_masks==1, True, False).to(hop_hf.device)
                 hop_hf = self.hop_func_tf(hop_hf,src_key_padding_mask = hf_masks)
                 hop_hf = hop_hf[:,0]
-            else :
-                pi_emb = hf[g.hop_pi]
-                pi_emb[g.hop_pi_stats==1] = self.one_token
-                pi_emb[g.hop_pi_stats==0] = self.zero_token
-                pi_emb[g.hop_pi_stats==-1] = self.dc_token 
-                pi_emb[g.hop_pi_stats==-2] = self.pad_token.to(hf.device)
-                po_emb = hf[g.hop_po]
-                hop_hf = torch.mean(torch.cat([pi_emb,po_emb],dim=1),dim=1)
+            
 
             #pair-wise TT sim prediction
             hop_tt_sim = self.proj_hop_ttsim(torch.cat([hop_hf[g.hop_forward_index[g.hop_pair_index[0]]],hop_hf[g.hop_forward_index[g.hop_pair_index[1]]]],dim=-1))
@@ -449,7 +320,9 @@ class DeepGate3(nn.Module):
             hop_tt = self.hop_head(hop_hf)
 
             # hop_hs = torch.stack(hop_hs) #bs seq_len hidden
-            if self.tf_arch!='baseline':
+            if self.tf_arch == 'baseline' or self.tf_arch=='mamba':
+                hop_hs = torch.mean(hs[g.hop_nodes],dim=1)
+            else:
                 hop_hs = hs[g.hop_nodes]
                 hop_hs = torch.cat([self.cls_token_hs.reshape(1,1,-1).repeat(hop_hs.shape[0],1,1),hop_hs],dim=1)
                 
@@ -463,8 +336,8 @@ class DeepGate3(nn.Module):
 
                 hop_hs = self.hop_struc_tf(hop_hs,src_key_padding_mask = hs_masks)
                 hop_hs = hop_hs[:,0]
-            else:
-                hop_hs = torch.mean(hs[g.hop_nodes],dim=1)
+                
+            
             #pari-wise GED prediction 
             pred_GED = self.proj_GED(torch.cat([hop_hs[g.hop_pair_index[0]],hop_hs[g.hop_pair_index[1]]],dim=-1))
             pred_GED = nn.Sigmoid()(pred_GED)
@@ -495,11 +368,6 @@ class DeepGate3(nn.Module):
                 'level':pred_level,
                 'connect':pred_connect,
                 'tt_sim':gate_tt_sim,
-            },
-            'path':{
-                'on_path':on_path_logits,
-                'length':pred_path_len,
-                'AND': pred_path_and_ratio, 
             },
             'hop':{
                 'tt':hop_tt,
