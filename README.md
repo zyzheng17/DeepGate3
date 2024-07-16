@@ -8,6 +8,7 @@ TODO
 
 ## Installation
 For conda environments, please refer to https://github.com/zshi0616/DeepGate2
+
 Install python-deepgate
 ```sh
 git clone https://github.com/Ironprop-Stone/python-deepgate.git
