@@ -1,10 +1,6 @@
 # DeepGate3: Graph-level Circuit Representation Learning
 
-Official code repository for the paper: xxx
-
-## Abstract 
-TODO
-
+Official code repository for the paper: DeepGate3: Graph-level Circuit Representation Learning
 
 ## Installation
 For conda environments, please refer to https://github.com/zshi0616/DeepGate2
