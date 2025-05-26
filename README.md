@@ -1,7 +1,7 @@
 # DeepGate3: Graph-level Circuit Representation Learning
 
 Official code repository for the paper: DeepGate3: Graph-level Circuit Representation Learning
-## NEWS
+## NEWS-DeepGate4
 Our works **DeepGate4: Efficient and Effective Representation Learning for Circuit Design at Scale** has been accepted by ICLR2025 and the code is available at https://github.com/zyzheng17/DeepGate4-ICLR-25.
 ## Installation
 For conda environments, please refer to https://github.com/zshi0616/DeepGate2
